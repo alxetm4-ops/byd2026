@@ -1,9 +1,8 @@
-/* Service worker mínimo: cachea el shell para que el tablero abra sin internet.
-   Las llamadas a /api/ siempre van a la red. */
-const CACHE = 'byd-colombia-v4';
+/* Service worker: cachea solo assets públicos.
+   Las navegaciones y /api/ siempre van a la red; si no hay internet,
+   se usa el shell de la app cacheado (nunca la pantalla de login). */
+const CACHE = 'byd-colombia-v12';
 const ASSETS = [
-  '/',
-  '/index.html',
   '/styles.css',
   '/app.js',
   '/manifest.webmanifest',
@@ -16,9 +15,8 @@ self.addEventListener('install', (event) => {
   event.waitUntil(
     caches
       .open(CACHE)
-      .then((cache) => cache.addAll(ASSETS))
+      .then((cache) => Promise.all(ASSETS.map((asset) => cache.add(asset).catch(() => {}))))
       .then(() => self.skipWaiting())
-      .catch(() => self.skipWaiting())
   );
 });
 
@@ -39,16 +37,44 @@ self.addEventListener('fetch', (event) => {
   if (url.origin !== self.location.origin) return;
   if (url.pathname.startsWith('/api/')) return;
 
+  if (request.mode === 'navigate') {
+    event.respondWith(
+      fetch(request)
+        .then((response) => {
+          const type = response.headers.get('content-type') || '';
+          if (response.ok && !response.redirected && type.includes('text/html')) {
+            const copy = response.clone();
+            caches.open(CACHE).then((cache) => cache.put('/', copy)).catch(() => {});
+          }
+          return response;
+        })
+        .catch(async () => {
+          const cached = await caches.match('/');
+          if (cached) return cached;
+          return new Response('Sin conexión. Conecta el carro a internet y vuelve a intentar.', {
+            status: 503,
+            headers: { 'Content-Type': 'text/plain; charset=utf-8' },
+          });
+        })
+    );
+    return;
+  }
+
   event.respondWith(
     caches.match(request).then((cached) => {
       if (cached) return cached;
       return fetch(request)
         .then((response) => {
-          const copy = response.clone();
-          caches.open(CACHE).then((cache) => cache.put(request, copy)).catch(() => {});
+          if (response.ok && !response.redirected) {
+            const copy = response.clone();
+            caches.open(CACHE).then((cache) => cache.put(request, copy)).catch(() => {});
+          }
           return response;
         })
-        .catch(() => caches.match('/index.html'));
+        .catch(async () => {
+          const fallback = await caches.match(request);
+          return fallback || new Response('', { status: 504 });
+        });
     })
   );
 });
