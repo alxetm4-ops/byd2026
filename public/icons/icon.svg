@@ -1,0 +1,6 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" role="img" aria-label="BYD Colombia">
+  <rect width="512" height="512" rx="116" fill="#0b0f14" />
+  <circle cx="256" cy="256" r="158" fill="none" stroke="#00d1b2" stroke-width="24" opacity="0.9" />
+  <path d="M286 118 170 286h74l-22 108 118-176h-76l22-100Z" fill="#00d1b2" />
+  <circle cx="256" cy="256" r="196" fill="none" stroke="#1f2c3d" stroke-width="6" />
+</svg>
