@@ -455,8 +455,8 @@ const demo = {
   tireRr: 2.4,
   charging: false,
   consumption: 14.8,
-  lat: 4.6486,
-  lon: -74.0624,
+  lat: 6.2442,
+  lon: -75.5812,
   climate: true,
   locked: true,
 };
@@ -938,6 +938,7 @@ function buildState() {
       count: webhookCount,
       lastAt: live ? new Date(live.at).toISOString() : null,
     },
+    webhookUrl: `/api/webhook${WEBHOOK_TOKEN ? `?token=${encodeURIComponent(WEBHOOK_TOKEN)}` : ''}`,
   };
 }
 
@@ -1148,7 +1149,7 @@ const server = http.createServer(async (req, res) => {
 
     if (pathname === '/login' && req.method === 'GET') {
       if (isAuthenticated(req)) {
-        res.writeHead(302, { Location: '/?v=12' });
+        res.writeHead(302, { Location: '/?v=13' });
         res.end();
         return;
       }
@@ -1164,7 +1165,7 @@ const server = http.createServer(async (req, res) => {
       const pass = form.get('password') || '';
       if (user === DASHBOARD_USER && pass === DASHBOARD_PASSWORD) {
         setSessionCookie(res, createSession(user), req);
-        res.writeHead(302, { Location: '/?v=12' });
+        res.writeHead(302, { Location: '/?v=13' });
         res.end();
       } else {
         res.writeHead(302, { Location: '/login?error=1' });

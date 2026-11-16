@@ -22,6 +22,9 @@
     map: null,
     carMarker: null,
     tripLayer: null,
+    userMarker: null,
+    userLocation: null,
+    mapCentered: false,
     mapReady: false,
     stations: [],
     station: null,
@@ -715,13 +718,15 @@
   /* Mapa                                                               */
   /* ------------------------------------------------------------------ */
 
+  const MAP_DEFAULT = [6.2442, -75.5812];
+
   function ensureMap() {
     if (state.mapReady) return;
     if (typeof L === 'undefined') {
       setText('mapStatus', 'No se pudo cargar el mapa (revisa la conexión).');
       return;
     }
-    const map = L.map('map', { zoomControl: false, attributionControl: true }).setView([4.6486, -74.0624], 12);
+    const map = L.map('map', { zoomControl: false, attributionControl: true }).setView(MAP_DEFAULT, 12);
     const osm = L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png', {
       maxZoom: 19,
       attribution: '&copy; OpenStreetMap contributors',
@@ -743,14 +748,15 @@
     });
 
     state.map = map;
-    state.carMarker = L.marker([4.6486, -74.0624], { icon }).addTo(map);
+    state.carMarker = L.marker(MAP_DEFAULT, { icon }).addTo(map);
     state.tripLayer = L.layerGroup().addTo(map);
     state.mapReady = true;
 
     $('centerBtn').addEventListener('click', () => {
       const v = state.data && state.data.vehicle;
-      if (v && v.lat != null && v.lon != null) map.setView([v.lat, v.lon], 14);
-      else map.setView([4.6486, -74.0624], 12);
+      if (v && v.lat != null && v.lon != null) map.setView([v.lat, v.lon], 15);
+      else if (state.userLocation) map.setView([state.userLocation.lat, state.userLocation.lon], 15);
+      else map.setView(MAP_DEFAULT, 12);
     });
 
     setTimeout(() => map.invalidateSize(), 60);
@@ -764,25 +770,78 @@
     const status = $('mapStatus');
 
     if (!v || v.lat == null || v.lon == null) {
-      status.textContent = data && data.mode === 'live' ? 'Sin coordenadas: actívalas en BYDMate' : 'Ubicación de demostración';
+      if (state.userLocation) status.textContent = 'Tu ubicación (celular)';
+      else if (data && data.mode === 'live') status.textContent = 'Sin coordenadas: actívalas en BYDMate';
+      else status.textContent = 'Sin datos del carro todavía';
       return;
     }
 
     const latlng = [Number(v.lat), Number(v.lon)];
     if (Number.isFinite(latlng[0]) && Number.isFinite(latlng[1])) {
       state.carMarker.setLatLng(latlng);
+      if (data.mode === 'live' && !state.mapCentered) {
+        state.map.setView(latlng, 15);
+        state.mapCentered = true;
+      }
       status.textContent = data.mode === 'live' ? 'En vivo' : 'Demostración';
     }
   }
+
+  function locateUser() {
+    if (!navigator.geolocation) {
+      toast('Este navegador no tiene GPS disponible.');
+      setText('mapStatus', 'Sin GPS disponible');
+      return;
+    }
+    ensureMap();
+    if (!state.mapReady) return;
+    setText('mapStatus', 'Buscando tu ubicación…');
+    navigator.geolocation.getCurrentPosition(
+      (position) => {
+        const lat = position.coords.latitude;
+        const lon = position.coords.longitude;
+        state.userLocation = { lat, lon };
+        const latlng = [lat, lon];
+        if (state.userMarker) state.userMarker.setLatLng(latlng);
+        else {
+          state.userMarker = L.circleMarker(latlng, {
+            radius: 8,
+            color: '#3b82f6',
+            fillColor: '#3b82f6',
+            fillOpacity: 1,
+            weight: 3,
+          }).addTo(state.map);
+        }
+        state.map.setView(latlng, 15);
+        setText('mapStatus', `Tu ubicación: ${lat.toFixed(4)}, ${lon.toFixed(4)}`);
+        toast('Mapa centrado en tu ubicación.');
+      },
+      (error) => {
+        const message =
+          error && error.code === 1
+            ? 'Permiso de ubicación denegado. Actívalo en Chrome.'
+            : 'No se pudo obtener tu ubicación.';
+        setText('mapStatus', message);
+        toast(message);
+      },
+      { enableHighAccuracy: true, timeout: 12000, maximumAge: 60000 }
+    );
+  }
+
+  const geoBtn = $('geoBtn');
+  if (geoBtn) geoBtn.addEventListener('click', locateUser);
 
   const gmapsBtn = $('gmapsBtn');
   if (gmapsBtn) {
     gmapsBtn.addEventListener('click', () => {
       const vehicle = state.data && state.data.vehicle;
-      if (vehicle && vehicle.lat != null && vehicle.lon != null) {
-        window.open(`https://www.google.com/maps?q=${vehicle.lat},${vehicle.lon}`, '_blank', 'noopener');
+      let point = null;
+      if (vehicle && vehicle.lat != null && vehicle.lon != null) point = [vehicle.lat, vehicle.lon];
+      else if (state.userLocation) point = [state.userLocation.lat, state.userLocation.lon];
+      if (point) {
+        window.open(`https://www.google.com/maps?q=${point[0]},${point[1]}`, '_blank', 'noopener');
       } else {
-        toast('Todavía no tengo la ubicación del carro.');
+        toast('Todavía no tengo una ubicación. Toca “Mi ubicación”.');
       }
     });
   }
@@ -1035,7 +1094,8 @@
     $('tariffInput').value = config.tariffCop ?? 750;
     $('consumptionInput').value = config.avgConsumption ?? 23.9;
     $('demoToggle').checked = Boolean(config.demo);
-    const url = `${location.origin}/api/webhook`;
+    const webhookPath = (state.data && state.data.webhookUrl) || '/api/webhook';
+    const url = new URL(webhookPath, location.origin).href;
     setText('webhookUrl', url);
 
     const webhook = state.data && state.data.webhook;
@@ -1184,6 +1244,16 @@
     return window.speechSynthesis.getVoices().find((voice) => voice.lang.toLowerCase().startsWith(prefix)) || null;
   }
 
+  function makeCommandUtterance(text, lang) {
+    const utterance = new SpeechSynthesisUtterance(text);
+    utterance.lang = lang === 'zh' ? 'zh-CN' : 'en-US';
+    utterance.rate = 0.9;
+    utterance.volume = 1;
+    const voice = voiceForCommand(lang);
+    if (voice) utterance.voice = voice;
+    return { utterance, voice };
+  }
+
   function speakCarPhrase(text, lang) {
     if (!('speechSynthesis' in window)) {
       setText('commandStatus', 'Este navegador no tiene voz. Prueba en Chrome.');
@@ -1192,12 +1262,7 @@
     setText('commandPhrase', text);
     try {
       window.speechSynthesis.cancel();
-      const utterance = new SpeechSynthesisUtterance(text);
-      utterance.lang = lang === 'zh' ? 'zh-CN' : 'en-US';
-      utterance.rate = 0.9;
-      utterance.volume = 1;
-      const voice = voiceForCommand(lang);
-      if (voice) utterance.voice = voice;
+      const { utterance, voice } = makeCommandUtterance(text, lang);
       utterance.onstart = () => setText('commandStatus', 'Reproduciendo la frase…');
       utterance.onend = () =>
         setText('commandStatus', 'Frase enviada. Si el asistente no responde, revisa que esté activo y escuchando.');
@@ -1217,6 +1282,34 @@
     }
   }
 
+  function speakWakeThenCommand(wake, command, lang) {
+    if (!('speechSynthesis' in window)) {
+      setText('commandStatus', 'Este navegador no tiene voz. Prueba en Chrome.');
+      return;
+    }
+    setText('commandPhrase', `${wake} ${command}`);
+    setText('commandStatus', 'Despertando al asistente…');
+    try {
+      window.speechSynthesis.cancel();
+      const { utterance: wakeUtterance } = makeCommandUtterance(wake, lang);
+      wakeUtterance.onend = () => {
+        setText('commandStatus', 'Esperando que el asistente escuche…');
+        setTimeout(() => {
+          const { utterance: commandUtterance } = makeCommandUtterance(command, lang);
+          commandUtterance.onstart = () => setText('commandStatus', 'Enviando el comando…');
+          commandUtterance.onend = () =>
+            setText('commandStatus', 'Comando enviado. Si no responde, el asistente no está escuchando el audio.');
+          commandUtterance.onerror = () => setText('commandStatus', 'No se pudo reproducir el comando.');
+          window.speechSynthesis.speak(commandUtterance);
+        }, 1600);
+      };
+      wakeUtterance.onerror = () => setText('commandStatus', 'No se pudo reproducir el wake word.');
+      window.speechSynthesis.speak(wakeUtterance);
+    } catch {
+      setText('commandStatus', 'No se pudo iniciar la voz.');
+    }
+  }
+
   function runCommand(id) {
     const command = CAR_COMMANDS.find((item) => item.id === id);
     if (!command) return;
@@ -1228,8 +1321,9 @@
     }
     const lang = state.commandLang;
     const phrase = lang === 'zh' ? command.zh : command.en;
-    const wake = state.commandWake ? (lang === 'zh' ? '你好小迪，' : 'Hi BYD, ') : '';
-    speakCarPhrase(`${wake}${phrase}`, lang);
+    const wake = state.commandWake ? (lang === 'zh' ? '你好小迪' : 'Hi BYD') : '';
+    if (wake) speakWakeThenCommand(wake, phrase, lang);
+    else speakCarPhrase(phrase, lang);
   }
 
   function setupCommandsUI() {

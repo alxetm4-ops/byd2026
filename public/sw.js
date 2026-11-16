@@ -1,7 +1,7 @@
 /* Service worker: cachea solo assets públicos.
    Las navegaciones y /api/ siempre van a la red; si no hay internet,
    se usa el shell de la app cacheado (nunca la pantalla de login). */
-const CACHE = 'byd-colombia-v12';
+const CACHE = 'byd-colombia-v13';
 const ASSETS = [
   '/styles.css',
   '/app.js',
