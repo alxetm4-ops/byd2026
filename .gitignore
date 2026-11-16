@@ -1,0 +1,11 @@
+node_modules/
+data/config.json
+.chrome-profile/
+.edge-profile/
+.ssh/
+*.log
+.DS_Store
+Thumbs.db
+tools/cloudflared.exe
+CONECTAR-BYDMATE.txt
+LEEME-PRIMERO.txt

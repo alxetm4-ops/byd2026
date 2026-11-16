@@ -1,0 +1,15 @@
+services:
+  - type: web
+    name: byd-colombia
+    runtime: node
+    plan: free
+    buildCommand: npm install
+    startCommand: node server.js
+    healthCheckPath: /api/health
+    envVars:
+      - key: DASHBOARD_USER
+        value: byd
+      - key: DASHBOARD_PASSWORD
+        sync: false
+      - key: WEBHOOK_TOKEN
+        generateValue: true

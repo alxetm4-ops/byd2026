@@ -1,0 +1,13 @@
+{
+  "name": "byd-colombia",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Tablero en español para BYD Yuan Plus 2026 (DiLink) — Colombia",
+  "type": "module",
+  "scripts": {
+    "start": "node server.js"
+  },
+  "engines": {
+    "node": ">=20"
+  }
+}
