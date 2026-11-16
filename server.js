@@ -11,8 +11,11 @@
 import http from 'node:http';
 import { randomBytes, createHmac, timingSafeEqual } from 'node:crypto';
 import { readFile, writeFile, mkdir, stat } from 'node:fs/promises';
+import { createRequire } from 'node:module';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { unzipSync } from 'fflate';
+import initSqlJs from 'sql.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const PUBLIC_DIR = path.join(__dirname, 'public');
@@ -26,6 +29,11 @@ const SESSION_SECRET = process.env.SESSION_SECRET || randomBytes(32).toString('h
 const SESSION_COOKIE = 'byd_session';
 const SESSION_MAX_AGE = 7 * 24 * 3600;
 
+const require = createRequire(import.meta.url);
+const SQL = await initSqlJs({
+  locateFile: (file) => require.resolve(`sql.js/dist/${file}`),
+});
+
 await mkdir(DATA_DIR, { recursive: true });
 
 /* ------------------------------------------------------------------ */
@@ -37,6 +45,7 @@ const DEFAULT_CONFIG = {
   capacityKwh: 60.5,
   tariffCop: 750,
   currency: 'COP',
+  avgConsumption: 23.9,
   demo: true,
 };
 
@@ -50,6 +59,21 @@ try {
 
 async function saveConfig() {
   await writeFile(path.join(DATA_DIR, 'config.json'), JSON.stringify(config, null, 2));
+}
+
+/* Viajes y cargas importados del backup de BYDMate */
+let imported = { importedAt: null, trips: [], charges: [] };
+try {
+  const importedRaw = JSON.parse(await readFile(path.join(DATA_DIR, 'imported.json'), 'utf8'));
+  if (Array.isArray(importedRaw.trips) && Array.isArray(importedRaw.charges)) {
+    imported = importedRaw;
+  }
+} catch {
+  /* sin importación todavía */
+}
+
+async function saveImported() {
+  await writeFile(path.join(DATA_DIR, 'imported.json'), JSON.stringify(imported, null, 2));
 }
 
 /* ------------------------------------------------------------------ */
@@ -288,6 +312,95 @@ function renderBydMatePage() {
 }
 
 
+function renderMapsPage() {
+  return `<!doctype html>
+<html lang="es-CO">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Mapas gratis · BYD Colombia</title>
+<style>
+  :root { color-scheme: dark; }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0; min-height: 100dvh; padding: 24px 16px 40px;
+    background: radial-gradient(900px 480px at 15% -10%, rgba(0,229,255,.08), transparent 60%),
+                radial-gradient(800px 420px at 100% 0%, rgba(124,92,255,.08), transparent 55%), #0b0f14;
+    color: #e8eef7; font-family: "Segoe UI", system-ui, -apple-system, Roboto, sans-serif;
+  }
+  .wrap { max-width: 720px; margin: 0 auto; }
+  .back { color: #8fa3bd; text-decoration: none; font-size: 13px; display: inline-block; margin-bottom: 14px; }
+  .back:hover { color: #00d1b2; }
+  .card {
+    background: linear-gradient(180deg, #16202e, #111823); border: 1px solid #1f2c3d;
+    border-radius: 20px; padding: 28px; box-shadow: 0 24px 60px rgba(0,0,0,.45);
+  }
+  .logo {
+    width: 52px; height: 52px; border-radius: 14px; display: grid; place-items: center;
+    background: linear-gradient(145deg, #00e0bf, #00a98f); color: #04100d;
+    font-weight: 800; font-size: 15px; margin-bottom: 18px;
+  }
+  h1 { font-size: 25px; margin: 0 0 8px; letter-spacing: .2px; }
+  h2 { font-size: 16px; margin: 24px 0 10px; }
+  p { color: #8fa3bd; font-size: 14px; line-height: 1.6; margin: 0 0 14px; }
+  ol { margin: 0 0 16px; padding-left: 22px; color: #c8d4e4; font-size: 14px; line-height: 1.8; }
+  li strong { color: #e8eef7; }
+  .btn {
+    display: block; text-align: center; text-decoration: none; padding: 14px 18px;
+    border-radius: 12px; background: linear-gradient(145deg, #00e0bf, #00a98f);
+    color: #04100d; font-weight: 700; font-size: 15px; margin: 18px 0 10px;
+  }
+  .btn.secondary {
+    background: transparent; border: 1px solid #1f2c3d; color: #cfe0ff; font-weight: 600;
+    font-size: 13px; padding: 11px 16px; margin-top: 0;
+  }
+  .warn {
+    background: rgba(255,176,32,.08); border: 1px solid rgba(255,176,32,.28);
+    color: #ffcf7a; font-size: 13px; line-height: 1.6; padding: 13px 15px;
+    border-radius: 12px; margin: 18px 0;
+  }
+  .hint { color: #6f8199; font-size: 12.5px; line-height: 1.6; }
+</style>
+</head>
+<body>
+<main class="wrap">
+  <a class="back" href="/">← Volver al tablero</a>
+  <div class="card">
+    <div class="logo">BYD</div>
+    <h1>Mapas gratis para el carro</h1>
+    <p>La pantalla china no trae mapas de Colombia. La mejor opción gratuita, sin Google, sin cuenta y que funciona sin internet es <strong>Organic Maps</strong>.</p>
+
+    <a class="btn" href="/maps/organic.apk">Descargar Organic Maps (APK)</a>
+    <a class="btn secondary" href="https://github.com/organicmaps/organicmaps/releases/latest" target="_blank" rel="noopener">Ver versiones en GitHub</a>
+
+    <h2>Pasos</h2>
+    <ol>
+      <li>Toca <strong>Descargar Organic Maps (APK)</strong> desde el navegador del carro.</li>
+      <li>Cuando termine, abre el archivo y toca <strong>Instalar</strong>.</li>
+      <li>Permite instalar apps de esta fuente.</li>
+      <li>Abre Organic Maps → menú → <strong>Download maps</strong> → <strong>South America</strong> → <strong>Colombia</strong>.</li>
+      <li>Descarga el mapa y úsalo sin datos. El GPS funciona aunque no tengas internet.</li>
+    </ol>
+
+    <div class="warn">
+      Si el navegador del carro no descarga el APK, descárgalo en el PC y pásalo por USB (FAT32) al puerto de datos.
+      Organic Maps no necesita Google Play Services.
+    </div>
+
+    <h2>Alternativas</h2>
+    <p><strong>Google Maps / Waze:</strong> tienen tráfico en vivo, pero necesitan MicroG o Play Services instalados en el DiLink. Si el servicio de localización los instaló, puedes usarlos.</p>
+    <p><strong>OsmAnd:</strong> también es gratis y offline, pero más pesado y complejo. Organic Maps es más simple para el carro.</p>
+
+    <p class="hint">
+      Nuestra app ya tiene un mapa de estado con OpenStreetMap para ver dónde está el carro.
+      Para navegación giro a giro en Colombia, Organic Maps es la mejor opción gratuita.
+    </p>
+  </div>
+</main>
+</body>
+</html>`;
+}
+
 function readBody(req, limit = 262144) {
   return new Promise((resolve, reject) => {
     let data = '';
@@ -299,6 +412,24 @@ function readBody(req, limit = 262144) {
       }
     });
     req.on('end', () => resolve(data));
+    req.on('error', reject);
+  });
+}
+
+function readBinaryBody(req, limit = 120 * 1024 * 1024) {
+  return new Promise((resolve, reject) => {
+    const chunks = [];
+    let size = 0;
+    req.on('data', (chunk) => {
+      size += chunk.length;
+      if (size > limit) {
+        reject(new Error('archivo demasiado grande'));
+        req.destroy();
+        return;
+      }
+      chunks.push(chunk);
+    });
+    req.on('end', () => resolve(Buffer.concat(chunks)));
     req.on('error', reject);
   });
 }
@@ -402,6 +533,8 @@ const STALE_MS = 120000;
 
 function currentMode() {
   if (live && Date.now() - live.at < STALE_MS) return 'live';
+  // Si ya hubo datos reales, conservamos el último estado en vez de saltar a Demo.
+  if (live) return 'stale';
   return config.demo ? 'demo' : 'stale';
 }
 
@@ -665,24 +798,117 @@ function enrichVehicle(vehicle) {
   const v = { ...vehicle };
   const capacity = Number(v.capacityKwh) > 10 ? Number(v.capacityKwh) : config.capacityKwh;
 
-  if (v.consumption == null) {
-    if (session && session.distanceKm > 1) {
-      v.consumption = (session.energyKwh / session.distanceKm) * 100;
-    } else if (v.powerKw != null && Number(v.speedKmh) > 5) {
-      v.consumption = (Number(v.powerKw) / Number(v.speedKmh)) * 100;
-    } else {
-      v.consumption = 15.0;
-    }
+  let consumption;
+  if (session && session.distanceKm > 1) {
+    consumption = (session.energyKwh / session.distanceKm) * 100;
+  } else {
+    consumption = Number(config.avgConsumption) > 0 ? Number(config.avgConsumption) : 20;
   }
 
-  if (Number.isFinite(Number(v.consumption)) && Number(v.consumption) > 0) {
-    v.consumption = round(Number(v.consumption), 1);
-    if (v.rangeKm == null && v.soc != null) {
-      v.rangeKm = round(((Number(v.soc) / 100) * capacity) / (Number(v.consumption) / 100), 0);
+  if (Number.isFinite(consumption) && consumption > 0) {
+    v.consumption = round(consumption, 1);
+    if (v.soc != null) {
+      v.rangeKm = round(((Number(v.soc) / 100) * capacity) / (v.consumption / 100), 0);
     }
   }
 
   return v;
+}
+
+function tsToIso(value) {
+  const n = Number(value);
+  if (!Number.isFinite(n) || n <= 0) return null;
+  const ms = n > 1e12 ? n : n * 1000;
+  const date = new Date(ms);
+  return Number.isNaN(date.getTime()) ? null : date.toISOString();
+}
+
+function numOrNull(value) {
+  const n = Number(value);
+  return Number.isFinite(n) ? n : null;
+}
+
+function sqlRows(db, sql) {
+  const result = db.exec(sql);
+  if (!result.length) return [];
+  const { columns, values } = result[0];
+  return values.map((row) => Object.fromEntries(columns.map((column, index) => [column, row[index]])));
+}
+
+function mapImportedTrips(rows) {
+  return rows.map((row, index) => {
+    const distanceKm = numOrNull(row.distance_km) ?? 0;
+    const kwh = numOrNull(row.kwh_consumed);
+    let consumption = numOrNull(row.kwh_per_100km);
+    if (consumption == null && kwh != null && distanceKm > 0) consumption = (kwh / distanceKm) * 100;
+    return {
+      id: `byd-trip-${row.id ?? index}`,
+      source: 'bydmate',
+      start: tsToIso(row.start_ts),
+      end: tsToIso(row.end_ts),
+      distanceKm: round(distanceKm, 2),
+      kwh: kwh != null ? round(kwh, 2) : null,
+      consumption: consumption != null ? round(consumption, 1) : null,
+      costCop: kwh != null ? Math.round(kwh * config.tariffCop) : null,
+      socStart: numOrNull(row.soc_start),
+      socEnd: numOrNull(row.soc_end),
+      avgSpeedKmh: numOrNull(row.avg_speed_kmh),
+      batteryTempC: numOrNull(row.bat_temp_avg),
+      outsideTempC: numOrNull(row.exterior_temp),
+      odometerStartKm: numOrNull(row.odometer_start_km),
+      odometerEndKm: numOrNull(row.odometer_end_km),
+    };
+  });
+}
+
+function mapImportedCharges(rows) {
+  return rows.map((row, index) => {
+    const kwh = numOrNull(row.kwh_charged);
+    return {
+      id: `byd-charge-${row.id ?? index}`,
+      source: 'bydmate',
+      start: tsToIso(row.start_ts),
+      end: tsToIso(row.end_ts),
+      kwh: kwh != null ? round(kwh, 2) : null,
+      costCop: kwh != null ? Math.round(kwh * config.tariffCop) : null,
+      socStart: numOrNull(row.soc_start),
+      socEnd: numOrNull(row.soc_end),
+      type: row.type || null,
+      maxPowerKw: numOrNull(row.max_power_kw),
+      avgPowerKw: numOrNull(row.avg_power_kw),
+      status: row.status || 'COMPLETED',
+      lat: numOrNull(row.lat),
+      lon: numOrNull(row.lon),
+      batteryTempC: numOrNull(row.bat_temp_avg),
+    };
+  });
+}
+
+async function importBackupZip(buffer) {
+  const files = unzipSync(new Uint8Array(buffer));
+  const dbName = ['bydmate.db', 'bydmate.part.db'].find((name) => files[name]);
+  if (!dbName) {
+    throw new Error('El ZIP no contiene bydmate.db. Exporta el backup completo desde BYDMate.');
+  }
+
+  const db = new SQL.Database(files[dbName]);
+  try {
+    const tables = new Set(
+      sqlRows(db, "SELECT name FROM sqlite_master WHERE type='table'").map((row) => row.name)
+    );
+    const trips = tables.has('trips')
+      ? mapImportedTrips(sqlRows(db, 'SELECT * FROM trips ORDER BY start_ts DESC LIMIT 5000'))
+      : [];
+    const charges = tables.has('charges')
+      ? mapImportedCharges(sqlRows(db, 'SELECT * FROM charges ORDER BY start_ts DESC LIMIT 2000'))
+      : [];
+    if (!trips.length && !charges.length) {
+      throw new Error('El backup no trae viajes ni cargas. Exporta incluyendo las tablas (Tables).');
+    }
+    return { trips, charges };
+  } finally {
+    db.close();
+  }
 }
 
 function buildState() {
@@ -692,15 +918,20 @@ function buildState() {
   else if (mode === 'demo') vehicle = { ...demo };
   else if (live) vehicle = enrichVehicle(live.vehicle);
 
+  const importedTrips = imported.trips || [];
+  const importedCharges = imported.charges || [];
+
   return {
     mode,
     updatedAt:
-      mode === 'live'
-        ? sampleTimeIso(vehicle) || new Date(live.at).toISOString()
-        : new Date().toISOString(),
+      mode === 'demo'
+        ? new Date().toISOString()
+        : sampleTimeIso(vehicle) || (live ? new Date(live.at).toISOString() : new Date().toISOString()),
     vehicle,
     history: history.slice(-90),
-    trips: mode === 'demo' ? demoTrips() : [],
+    trips: imported.importedAt ? importedTrips : mode === 'demo' ? demoTrips() : [],
+    charges: importedCharges,
+    importedAt: imported.importedAt,
     currentTrip: mode === 'live' ? currentTrip() : null,
     config,
     webhook: {
@@ -801,6 +1032,35 @@ async function getBydMateApkUrl() {
 }
 
 /* ------------------------------------------------------------------ */
+/* Descarga de Organic Maps (mapa offline gratuito)                    */
+/* ------------------------------------------------------------------ */
+
+let organicCache = { at: 0, url: '' };
+
+async function getOrganicMapsApkUrl() {
+  if (organicCache.url && Date.now() - organicCache.at < 3600000) return organicCache.url;
+
+  try {
+    const res = await fetch('https://api.github.com/repos/organicmaps/organicmaps/releases/latest', {
+      headers: {
+        'User-Agent': 'BYDColombia/0.1 (tablero local)',
+        Accept: 'application/vnd.github+json',
+      },
+      signal: AbortSignal.timeout(8000),
+    });
+    if (!res.ok) throw new Error(`GitHub ${res.status}`);
+    const release = await res.json();
+    const asset = (release.assets || []).find((item) => item.name.toLowerCase().endsWith('.apk'));
+    if (!asset) throw new Error('la versión no trae APK');
+    organicCache = { at: Date.now(), url: asset.browser_download_url };
+    return organicCache.url;
+  } catch (err) {
+    console.warn('[organic] no se pudo obtener el APK:', err.message);
+    return 'https://github.com/organicmaps/organicmaps/releases/latest';
+  }
+}
+
+/* ------------------------------------------------------------------ */
 /* Servidor HTTP                                                       */
 /* ------------------------------------------------------------------ */
 
@@ -867,6 +1127,8 @@ const server = http.createServer(async (req, res) => {
       pathname === '/logout' ||
       pathname === '/bydmate' ||
       pathname === '/bydmate/apk' ||
+      pathname === '/maps' ||
+      pathname === '/maps/organic.apk' ||
       pathname === '/api/webhook' ||
       pathname === '/api/health' ||
       pathname === '/styles.css' ||
@@ -931,6 +1193,19 @@ const server = http.createServer(async (req, res) => {
       return;
     }
 
+    if (pathname === '/maps' && req.method === 'GET') {
+      res.writeHead(200, { 'Content-Type': 'text/html; charset=utf-8', 'Cache-Control': 'no-store' });
+      res.end(renderMapsPage());
+      return;
+    }
+
+    if (pathname === '/maps/organic.apk' && req.method === 'GET') {
+      const target = await getOrganicMapsApkUrl();
+      res.writeHead(302, { Location: target, 'Cache-Control': 'no-store' });
+      res.end();
+      return;
+    }
+
     if (pathname === '/api/health') {
       return sendJson(res, 200, { ok: true, mode: currentMode(), uptime: process.uptime() });
     }
@@ -947,10 +1222,39 @@ const server = http.createServer(async (req, res) => {
       const body = JSON.parse((await readBody(req)) || '{}');
       if (Number.isFinite(Number(body.capacityKwh))) config.capacityKwh = clamp(Number(body.capacityKwh), 20, 150);
       if (Number.isFinite(Number(body.tariffCop))) config.tariffCop = clamp(Number(body.tariffCop), 0, 100000);
+      if (Number.isFinite(Number(body.avgConsumption))) config.avgConsumption = clamp(Number(body.avgConsumption), 5, 50);
       if (typeof body.demo === 'boolean') config.demo = body.demo;
       if (typeof body.currency === 'string' && body.currency.length <= 5) config.currency = body.currency;
       await saveConfig();
       return sendJson(res, 200, config);
+    }
+
+    if (pathname === '/api/import' && req.method === 'POST') {
+      try {
+        const buffer = await readBinaryBody(req);
+        const result = await importBackupZip(buffer);
+        imported = {
+          importedAt: new Date().toISOString(),
+          trips: result.trips,
+          charges: result.charges,
+        };
+        await saveImported();
+        return sendJson(res, 200, {
+          ok: true,
+          trips: imported.trips.length,
+          charges: imported.charges.length,
+          importedAt: imported.importedAt,
+        });
+      } catch (err) {
+        console.error('[import]', err);
+        return sendJson(res, 400, { error: err.message || 'No se pudo leer el backup de BYDMate.' });
+      }
+    }
+
+    if (pathname === '/api/import' && req.method === 'DELETE') {
+      imported = { importedAt: null, trips: [], charges: [] };
+      await saveImported();
+      return sendJson(res, 200, { ok: true });
     }
 
     if (pathname === '/api/webhook' && req.method === 'POST') {

@@ -127,12 +127,74 @@
 
       <!-- ============================ VIAJES ============================ -->
       <section id="view-trips" class="view" aria-label="Viajes">
-        <div class="section-head">
-          <h2>Viajes</h2>
-          <p>Distancia, consumo y costo estimado con tu tarifa de energía.</p>
+        <div id="tripsHero" class="trips-hero">
+          <div class="trips-hero-glow" aria-hidden="true"></div>
+          <div class="trips-hero-head">
+            <div>
+              <span class="eyebrow">Energía y movimiento</span>
+              <h2>Viajes y cargas</h2>
+              <p id="tripsSource">Datos de ejemplo</p>
+            </div>
+            <button id="importBtn" class="import-btn" type="button" data-import="1">
+              <span>Importar BYDMate</span>
+            </button>
+          </div>
+
+          <div class="hero-stats">
+            <div class="hero-stat">
+              <span>Distancia</span>
+              <strong id="sumKm">0</strong>
+              <em>km</em>
+            </div>
+            <div class="hero-stat">
+              <span>Energía</span>
+              <strong id="sumKwh">0</strong>
+              <em>kWh</em>
+            </div>
+            <div class="hero-stat">
+              <span>Consumo</span>
+              <strong id="sumCons">—</strong>
+              <em>kWh/100</em>
+            </div>
+            <div class="hero-stat">
+              <span>Costo</span>
+              <strong id="sumCost">$0</strong>
+              <em>estimado</em>
+            </div>
+          </div>
+
+          <div class="hero-visuals">
+            <div class="orb" id="consOrb">
+              <div class="orb-inner">
+                <strong id="orbValue">—</strong>
+                <span>kWh/100</span>
+              </div>
+            </div>
+            <div class="bars-wrap">
+              <div class="bars-head">
+                <span>Últimos meses</span>
+                <span id="barsUnit">km</span>
+              </div>
+              <div id="monthBars" class="month-bars"></div>
+            </div>
+          </div>
         </div>
+
+        <div class="trips-toolbar">
+          <div class="segmented" role="tablist" aria-label="Viajes y cargas">
+            <button class="seg is-active" data-trips-tab="trips" type="button">
+              Viajes <span id="tripCount">0</span>
+            </button>
+            <button class="seg" data-trips-tab="charges" type="button">
+              Cargas <span id="chargeCount">0</span>
+            </button>
+          </div>
+          <span id="importedNote" class="muted"></span>
+        </div>
+
         <div id="currentTripCard" class="card current-trip" hidden></div>
-        <div id="tripsList" class="trips"></div>
+        <div id="tripsPanel" class="timeline"></div>
+        <div id="chargesPanel" class="charges-grid" hidden></div>
       </section>
 
       <!-- ============================ MAPA ============================ -->
@@ -145,6 +207,8 @@
         <div class="map-legend card">
           <span><i class="legend-dot legend-car"></i> Ubicación del carro</span>
           <span><i class="legend-dot legend-trip"></i> Viaje seleccionado</span>
+          <button id="gmapsBtn" class="map-link" type="button">Abrir en Google Maps</button>
+          <a class="map-link" href="/maps" target="_blank" rel="noopener">Mapa offline</a>
         </div>
       </section>
 
@@ -157,6 +221,7 @@
         <div class="radio-layout">
           <article class="card radio-panel">
             <div class="player">
+              <div id="playerLogo" class="player-logo"><span class="player-initials">♪</span></div>
               <div class="player-info">
                 <strong id="playerName">Selecciona una emisora</strong>
                 <span id="playerMeta">—</span>
@@ -173,6 +238,56 @@
             <div id="radioList" class="radio-list"></div>
           </article>
         </div>
+      </section>
+
+      <!-- ============================ COMANDOS ============================ -->
+      <section id="view-commands" class="view" aria-label="Comandos">
+        <div class="section-head">
+          <h2>Comandos</h2>
+          <p>Modo experimental: reproduce la frase para el asistente del carro.</p>
+        </div>
+
+        <div class="commands-hero">
+          <div class="commands-hero-head">
+            <div>
+              <span class="eyebrow">Experimental</span>
+              <h3>Comandos por voz</h3>
+              <p>No es una conexión directa con BYDMate. La app le habla al asistente nativo del carro.</p>
+            </div>
+            <div class="commands-toggles">
+              <div class="segmented" id="commandLang" role="tablist" aria-label="Idioma del comando">
+                <button class="seg is-active" data-lang="en" type="button">English</button>
+                <button class="seg" data-lang="zh" type="button">中文</button>
+              </div>
+              <label class="switch commands-wake">
+                <input id="commandWake" type="checkbox" checked />
+                <span class="switch-track" aria-hidden="true"></span>
+                <span class="switch-label">Incluir wake word</span>
+              </label>
+            </div>
+          </div>
+
+          <div class="commands-status">
+            <span id="commandsSpeed" class="chip">Velocidad: —</span>
+            <span id="commandsBlocked" class="badge">Solo parqueado</span>
+            <button id="commandTest" class="retry" type="button">Probar wake word</button>
+            <button id="commandStop" class="retry" type="button">Detener voz</button>
+          </div>
+
+          <p id="commandPhrase" class="command-phrase">Elige un comando.</p>
+          <p id="commandStatus" class="hint"></p>
+
+          <div class="command-custom">
+            <input id="commandCustom" class="search" type="text" placeholder="Otra frase: Hello BYD, open all windows" aria-label="Frase personalizada" />
+            <button id="commandCustomPlay" class="retry" type="button">Reproducir</button>
+          </div>
+
+          <div class="warn commands-warn">
+            <strong>Ojo:</strong> úsalo solo con el carro parqueado. El asistente puede no responder si está apagado, si no escucha el audio o si la frase no coincide. No es control directo de BYDMate.
+          </div>
+        </div>
+
+        <div id="commandsList" class="commands-list"></div>
       </section>
 
       <!-- ============================ AJUSTES ============================ -->
@@ -192,6 +307,11 @@
               <span>Tarifa de energía (COP / kWh)</span>
               <input id="tariffInput" type="number" step="10" min="0" />
             </label>
+            <label class="field">
+              <span>Consumo promedio (kWh / 100 km)</span>
+              <input id="consumptionInput" type="number" step="0.1" min="5" max="50" />
+            </label>
+            <p class="hint">Se usa para estimar la autonomía cuando el carro está parqueado. Cuando el carro se mueve, el tablero calcula el promedio real del viaje.</p>
             <label class="switch">
               <input id="demoToggle" type="checkbox" />
               <span class="switch-track" aria-hidden="true"></span>
@@ -222,6 +342,22 @@
             <a class="primary download-link" href="/bydmate" target="_blank" rel="noopener">Descargar BYDMate (APK)</a>
           </article>
         </div>
+
+        <article class="card install-card">
+          <div class="card-head">
+            <h3>Tu celular</h3>
+            <span class="chip">Android</span>
+          </div>
+          <p class="hint">
+            Instala el tablero como app en tu celular para abrirlo en pantalla completa, con ícono propio y el asistente de voz.
+          </p>
+          <button id="installBtn" class="primary" type="button" hidden>Instalar aplicación</button>
+          <p id="installStatus" class="hint"></p>
+          <p class="hint">
+            Si el botón no aparece, en Chrome toca el menú ⋮ → <strong>Instalar aplicación</strong> o
+            <strong>Agregar a pantalla principal</strong>.
+          </p>
+        </article>
       </section>
     </main>
 
@@ -242,6 +378,10 @@
         <svg viewBox="0 0 24 24" aria-hidden="true"><rect x="3" y="8" width="18" height="12" rx="2" /><path d="M7 8l10-4" /><circle cx="8" cy="14" r="2" /><path d="M15 12h3M15 16h3" /></svg>
         <span>Radio</span>
       </button>
+      <button class="tab" data-view="commands" type="button">
+        <svg viewBox="0 0 24 24" aria-hidden="true"><rect x="3" y="4" width="18" height="16" rx="3" /><path d="M8 9l3 3-3 3" /><path d="M13 15h4" /></svg>
+        <span>Comandos</span>
+      </button>
       <button class="tab" data-view="settings" type="button">
         <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="3" /><path d="M19 12a7 7 0 0 0-.1-1.2l2-1.6-2-3.4-2.4 1a7 7 0 0 0-2-1.1L14 3h-4l-.5 2.7a7 7 0 0 0-2 1.1l-2.4-1-2 3.4 2 1.6A7 7 0 0 0 5 12c0 .4 0 .8.1 1.2l-2 1.6 2 3.4 2.4-1a7 7 0 0 0 2 1.1L10 21h4l.5-2.7a7 7 0 0 0 2-1.1l2.4 1 2-3.4-2-1.6c.1-.4.1-.8.1-1.2Z" /></svg>
         <span>Ajustes</span>
@@ -250,6 +390,33 @@
   </div>
 
   <div id="toast" class="toast" role="status" aria-live="polite"></div>
+
+  <!-- Importar backup de BYDMate -->
+  <div id="importModal" class="modal" hidden>
+    <div class="modal-card">
+      <button id="importClose" class="modal-close" type="button" aria-label="Cerrar">×</button>
+      <span class="eyebrow">BYDMate</span>
+      <h3>Importar viajes y cargas</h3>
+      <p class="hint">
+        Lee el backup de BYDMate y llena la pestaña Viajes con tus recorridos y sesiones de carga reales.
+      </p>
+      <ol class="import-steps">
+        <li>En BYDMate: <strong>Ajustes → Service &amp; Data → Backup</strong> (o “Guardar configuración”), incluyendo las tablas.</li>
+        <li>Se guarda en Descargas un archivo <code>bydmate_backup_....zip</code>.</li>
+        <li>Tráelo a este dispositivo y súbelo aquí.</li>
+      </ol>
+      <div id="importDrop" class="drop-zone" role="button" tabindex="0">
+        <strong>Arrastra el .zip aquí</strong>
+        <span>o toca para elegir el archivo</span>
+      </div>
+      <input id="importFile" type="file" accept=".zip,application/zip" hidden />
+      <p id="importStatus" class="hint"></p>
+      <p class="hint">
+        Solo se lee la base de viajes y cargas. Tus preferencias, cuentas y claves no se suben.
+        Si Render se reinicia, vuelve a importar el backup.
+      </p>
+    </div>
+  </div>
 
   <!-- Asistente de voz -->
   <button id="voiceBtn" class="voice-fab" type="button" aria-label="Abrir asistente de voz" aria-expanded="false">

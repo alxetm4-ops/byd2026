@@ -1,6 +1,6 @@
 /* Service worker mínimo: cachea el shell para que el tablero abra sin internet.
    Las llamadas a /api/ siempre van a la red. */
-const CACHE = 'byd-colombia-v4';
+const CACHE = 'byd-colombia-v11';
 const ASSETS = [
   '/',
   '/index.html',

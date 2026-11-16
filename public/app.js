@@ -11,6 +11,7 @@
   const money = new Intl.NumberFormat('es-CO', { style: 'currency', currency: 'COP', maximumFractionDigits: 0 });
   const hora = new Intl.DateTimeFormat('es-CO', { hour: '2-digit', minute: '2-digit' });
   const fecha = new Intl.DateTimeFormat('es-CO', { weekday: 'short', day: 'numeric', month: 'short' });
+  const mesCorto = new Intl.DateTimeFormat('es-CO', { month: 'short' });
 
   const RING_CIRCUNFERENCIA = 2 * Math.PI * 88;
 
@@ -28,6 +29,9 @@
     audio: new Audio(),
     playing: false,
     toastTimer: null,
+    tripsTab: 'trips',
+    commandLang: 'en',
+    commandWake: true,
   };
 
   state.audio.preload = 'none';
@@ -143,6 +147,7 @@
     renderDashboard(data.vehicle, data.mode);
     if (state.view === 'trips') renderTrips();
     if (state.view === 'map') renderMap();
+    if (state.view === 'commands') updateCommandsStatus();
     // No re-renderizar los ajustes mientras el usuario escribe en un campo.
     if (state.view === 'settings') {
       const editing = document.activeElement && document.activeElement.closest && document.activeElement.closest('#view-settings input');
@@ -355,9 +360,9 @@
   function renderTrips() {
     const data = state.data;
     if (!data) return;
+    const trips = data.trips || [];
+    const charges = data.charges || [];
     const current = $('currentTripCard');
-    const list = $('tripsList');
-    list.innerHTML = '';
     current.innerHTML = '';
     current.hidden = true;
 
@@ -370,28 +375,28 @@
       stats.appendChild(tripStat('Consumo', `${fmt1(t.consumption)} kWh/100`));
       stats.appendChild(tripStat('Costo', money.format(t.costCop || 0)));
       current.appendChild(stats);
-      if (t.points && t.points.length > 1) {
-        const actions = el('div', 'trip-actions');
-        const btn = el('button', '', 'Ver en mapa');
-        btn.type = 'button';
-        btn.addEventListener('click', () => showTripOnMap({ points: t.points, from: 'Origen', to: 'Ahora' }));
-        actions.appendChild(btn);
-        current.appendChild(actions);
-      }
     }
 
-    const trips = data.trips || [];
-    if (!trips.length) {
-      const empty = el('div', 'empty');
-      empty.textContent =
-        data.mode === 'live'
-          ? 'Aún no hay viajes cerrados. El viaje en curso aparece arriba cuando el carro se mueve.'
-          : 'No hay viajes registrados. Activa el modo demostración en Ajustes para ver ejemplos.';
-      list.appendChild(empty);
-      return;
-    }
+    const imported = Boolean(data.importedAt) && trips.some((trip) => trip.source === 'bydmate');
+    setText(
+      'tripsSource',
+      imported
+        ? `Importado de BYDMate${data.importedAt ? ` · ${fecha.format(new Date(data.importedAt))}` : ''}`
+        : data.mode === 'demo'
+          ? 'Datos de ejemplo · importa tu backup para ver los reales'
+          : 'Sin viajes registrados'
+    );
+    setText(
+      'importedNote',
+      data.importedAt ? `Actualizado ${fecha.format(new Date(data.importedAt))} · ${hora.format(new Date(data.importedAt))}` : ''
+    );
+    setText('tripCount', trips.length);
+    setText('chargeCount', charges.length);
 
-    trips.forEach((trip) => list.appendChild(tripCard(trip)));
+    renderTripsSummary(trips, charges);
+    renderTripsTimeline(trips);
+    renderChargesList(charges);
+    applyTripsTab();
   }
 
   function tripStat(label, value) {
@@ -401,31 +406,310 @@
     return box;
   }
 
-  function tripCard(trip) {
-    const card = el('article', 'card trip');
-    const head = el('div', 'trip-head');
-    const route = el('div', 'trip-route');
-    route.appendChild(el('strong', '', `${trip.from || 'Origen'} → ${trip.to || 'Destino'}`));
-    route.appendChild(el('span', '', `${fecha.format(new Date(trip.start))} · ${hora.format(new Date(trip.start))}`));
-    head.appendChild(route);
-    head.appendChild(el('span', 'chip', `${fmt0(trip.distanceKm)} km`));
+  function tripKwh(trip) {
+    if (trip.kwh != null) return Number(trip.kwh);
+    if (Number(trip.distanceKm) > 0 && trip.consumption != null) {
+      return (Number(trip.distanceKm) * Number(trip.consumption)) / 100;
+    }
+    return null;
+  }
+
+  function tripDuration(trip) {
+    if (trip.durationMin != null) return Number(trip.durationMin);
+    if (trip.start && trip.end) {
+      const minutes = (new Date(trip.end).getTime() - new Date(trip.start).getTime()) / 60000;
+      return Number.isFinite(minutes) && minutes >= 0 ? Math.round(minutes) : null;
+    }
+    return null;
+  }
+
+  function renderTripsSummary(trips, charges) {
+    const km = trips.reduce((sum, trip) => sum + Number(trip.distanceKm || 0), 0);
+    const kwh = trips.reduce((sum, trip) => sum + Number(tripKwh(trip) || 0), 0);
+    const cost = trips.reduce((sum, trip) => sum + Number(trip.costCop || 0), 0);
+    let consumption = km > 0 ? (kwh / km) * 100 : null;
+    if (consumption == null) {
+      const values = trips.map((trip) => Number(trip.consumption)).filter((value) => Number.isFinite(value) && value > 0);
+      if (values.length) consumption = values.reduce((a, b) => a + b, 0) / values.length;
+    }
+
+    setText('sumKm', fmt0(km));
+    setText('sumKwh', fmt1(kwh));
+    setText('sumCons', consumption != null ? fmt1(consumption) : '—');
+    setText('sumCost', money.format(cost));
+    setText('orbValue', consumption != null ? fmt1(consumption) : '—');
+
+    const orb = $('consOrb');
+    if (orb) {
+      const pct = consumption != null ? Math.max(4, Math.min(100, (consumption / 30) * 100)) : 0;
+      orb.style.setProperty('--pct', `${pct}%`);
+    }
+
+    renderMonthBars(trips);
+  }
+
+  function renderMonthBars(trips) {
+    const wrap = $('monthBars');
+    if (!wrap) return;
+    wrap.innerHTML = '';
+    const now = new Date();
+    const months = [];
+    for (let i = 5; i >= 0; i -= 1) {
+      const date = new Date(now.getFullYear(), now.getMonth() - i, 1);
+      months.push({ key: `${date.getFullYear()}-${date.getMonth()}`, label: mesCorto.format(date) });
+    }
+    const totals = new Map(months.map((month) => [month.key, 0]));
+    for (const trip of trips) {
+      if (!trip.start) continue;
+      const date = new Date(trip.start);
+      if (Number.isNaN(date.getTime())) continue;
+      const key = `${date.getFullYear()}-${date.getMonth()}`;
+      if (totals.has(key)) totals.set(key, totals.get(key) + Number(trip.distanceKm || 0));
+    }
+    const max = Math.max(1, ...totals.values());
+    for (const month of months) {
+      const value = totals.get(month.key);
+      const bar = el('div', 'month-bar');
+      bar.appendChild(el('span', 'month-bar-value', value > 0 ? fmt0(value) : ''));
+      const track = el('div', 'month-bar-track');
+      const fill = el('div', 'month-bar-fill');
+      fill.style.height = `${Math.max(4, (value / max) * 100)}%`;
+      track.appendChild(fill);
+      bar.appendChild(track);
+      bar.appendChild(el('span', 'month-bar-label', month.label));
+      wrap.appendChild(bar);
+    }
+  }
+
+  function renderTripsTimeline(trips) {
+    const panel = $('tripsPanel');
+    if (!panel) return;
+    panel.innerHTML = '';
+    if (!trips.length) {
+      panel.appendChild(
+        emptyState(
+          'Todavía no hay viajes',
+          'Importa el backup de BYDMate para llenar esta línea de tiempo con tus recorridos reales.',
+          'Importar backup'
+        )
+      );
+      return;
+    }
+    for (const trip of trips) panel.appendChild(tripTimelineItem(trip));
+  }
+
+  function tripTimelineItem(trip) {
+    const item = el('div', 'timeline-item');
+    item.appendChild(el('span', 'timeline-dot'));
+    const card = el('article', 'trip-card futuristic');
+
+    const head = el('div', 'trip-card-head');
+    const left = el('div', 'trip-card-title');
+    left.appendChild(el('span', 'eyebrow', trip.source === 'bydmate' ? 'BYDMate' : trip.from ? 'Viaje' : 'Registro'));
+    const date = trip.start ? `${fecha.format(new Date(trip.start))} · ${hora.format(new Date(trip.start))}` : 'Sin fecha';
+    left.appendChild(el('strong', 'trip-date', date));
+    head.appendChild(left);
+    head.appendChild(el('span', 'trip-km', `${fmt1(trip.distanceKm)} km`));
     card.appendChild(head);
 
-    const stats = el('div', 'trip-stats');
-    stats.appendChild(tripStat('Distancia', `${fmt1(trip.distanceKm)} km`));
-    stats.appendChild(tripStat('Consumo', `${fmt1(trip.consumption)} kWh/100`));
-    stats.appendChild(tripStat('Costo', money.format(trip.costCop || 0)));
-    card.appendChild(stats);
+    if (trip.from || trip.to) {
+      card.appendChild(el('p', 'trip-route-text', `${trip.from || 'Origen'} → ${trip.to || 'Destino'}`));
+    }
 
-    const actions = el('div', 'trip-actions');
-    const btn = el('button', '', 'Ver en mapa');
-    btn.type = 'button';
-    btn.addEventListener('click', () => showTripOnMap(trip));
-    actions.appendChild(btn);
-    card.appendChild(actions);
+    const grid = el('div', 'trip-metrics');
+    const kwh = tripKwh(trip);
+    grid.appendChild(metric('Consumo', Number(trip.distanceKm) > 0 && trip.consumption != null ? `${fmt1(trip.consumption)} kWh/100` : '—'));
+    grid.appendChild(metric('Energía', kwh != null ? `${fmt1(kwh)} kWh` : '—'));
+    grid.appendChild(metric('Costo', trip.costCop != null ? money.format(trip.costCop) : '—'));
+    if (trip.socStart != null && trip.socEnd != null) {
+      grid.appendChild(metric('SOC', `${trip.socStart}% → ${trip.socEnd}%`));
+    }
+    if (trip.avgSpeedKmh != null) grid.appendChild(metric('Vel. media', `${fmt0(trip.avgSpeedKmh)} km/h`));
+    if (trip.batteryTempC != null) grid.appendChild(metric('Temp. batería', `${fmt1(trip.batteryTempC)} °C`));
+    const duration = tripDuration(trip);
+    if (duration != null) grid.appendChild(metric('Duración', `${fmt0(duration)} min`));
+    card.appendChild(grid);
 
+    if (trip.points && trip.points.length > 1) {
+      const button = el('button', 'trip-map-btn', 'Ver recorrido');
+      button.type = 'button';
+      button.addEventListener('click', () => showTripOnMap(trip));
+      card.appendChild(button);
+    }
+
+    item.appendChild(card);
+    return item;
+  }
+
+  function metric(label, value) {
+    const box = el('div', 'metric');
+    box.appendChild(el('span', '', label));
+    box.appendChild(el('strong', '', value));
+    return box;
+  }
+
+  function renderChargesList(charges) {
+    const panel = $('chargesPanel');
+    if (!panel) return;
+    panel.innerHTML = '';
+    if (!charges.length) {
+      panel.appendChild(
+        emptyState('No hay cargas todavía', 'El backup de BYDMate también trae las sesiones de carga AC y DC.', 'Importar backup')
+      );
+      return;
+    }
+    for (const charge of charges) panel.appendChild(chargeCard(charge));
+  }
+
+  function chargeCard(charge) {
+    const card = el('article', 'charge-card futuristic');
+    const head = el('div', 'trip-card-head');
+    const left = el('div', 'trip-card-title');
+    left.appendChild(el('span', 'eyebrow', charge.type ? `Carga ${charge.type}` : 'Carga'));
+    left.appendChild(
+      el('strong', 'trip-date', charge.start ? `${fecha.format(new Date(charge.start))} · ${hora.format(new Date(charge.start))}` : 'Sin fecha')
+    );
+    head.appendChild(left);
+    head.appendChild(el('span', 'charge-badge', charge.type || '—'));
+    card.appendChild(head);
+
+    const start = Math.max(0, Math.min(100, Number(charge.socStart ?? 0)));
+    const end = Math.max(start, Math.min(100, Number(charge.socEnd ?? start)));
+    const bar = el('div', 'charge-bar');
+    const fill = el('div', 'charge-bar-fill');
+    fill.style.left = `${start}%`;
+    fill.style.width = `${Math.max(2, end - start)}%`;
+    bar.appendChild(fill);
+    card.appendChild(bar);
+    card.appendChild(el('div', 'charge-soc', `${charge.socStart ?? '—'}% → ${charge.socEnd ?? '—'}%`));
+
+    const grid = el('div', 'trip-metrics');
+    grid.appendChild(metric('Energía', charge.kwh != null ? `${fmt1(charge.kwh)} kWh` : '—'));
+    grid.appendChild(metric('Potencia máx.', charge.maxPowerKw != null ? `${fmt1(charge.maxPowerKw)} kW` : '—'));
+    grid.appendChild(metric('Costo', charge.costCop != null ? money.format(charge.costCop) : '—'));
+    if (charge.batteryTempC != null) grid.appendChild(metric('Temp. batería', `${fmt1(charge.batteryTempC)} °C`));
+    card.appendChild(grid);
     return card;
   }
+
+  function emptyState(title, text, cta) {
+    const box = el('div', 'futuristic-empty');
+    box.appendChild(el('strong', '', title));
+    box.appendChild(el('p', '', text));
+    if (cta) {
+      const button = el('button', 'import-btn', cta);
+      button.type = 'button';
+      button.dataset.import = '1';
+      box.appendChild(button);
+    }
+    return box;
+  }
+
+  function applyTripsTab() {
+    const tab = state.tripsTab || 'trips';
+    document.querySelectorAll('[data-trips-tab]').forEach((button) => {
+      button.classList.toggle('is-active', button.dataset.tripsTab === tab);
+    });
+    const tripsPanel = $('tripsPanel');
+    const chargesPanel = $('chargesPanel');
+    if (tripsPanel) tripsPanel.hidden = tab !== 'trips';
+    if (chargesPanel) chargesPanel.hidden = tab !== 'charges';
+  }
+
+  function setupTripsUI() {
+    document.querySelectorAll('[data-trips-tab]').forEach((button) => {
+      button.addEventListener('click', () => {
+        state.tripsTab = button.dataset.tripsTab;
+        applyTripsTab();
+      });
+    });
+
+    const modal = $('importModal');
+    const open = () => {
+      modal.hidden = false;
+      setText('importStatus', '');
+    };
+    const close = () => {
+      modal.hidden = true;
+    };
+
+    document.addEventListener('click', (event) => {
+      const trigger = event.target.closest('[data-import]');
+      if (trigger) {
+        event.preventDefault();
+        open();
+      }
+    });
+    $('importClose').addEventListener('click', close);
+    modal.addEventListener('click', (event) => {
+      if (event.target === modal) close();
+    });
+
+    const drop = $('importDrop');
+    const fileInput = $('importFile');
+    drop.addEventListener('click', () => fileInput.click());
+    drop.addEventListener('keydown', (event) => {
+      if (event.key === 'Enter' || event.key === ' ') {
+        event.preventDefault();
+        fileInput.click();
+      }
+    });
+    ['dragenter', 'dragover'].forEach((name) => {
+      drop.addEventListener(name, (event) => {
+        event.preventDefault();
+        drop.classList.add('is-dragover');
+      });
+    });
+    ['dragleave', 'drop'].forEach((name) => {
+      drop.addEventListener(name, (event) => {
+        event.preventDefault();
+        drop.classList.remove('is-dragover');
+      });
+    });
+    drop.addEventListener('drop', (event) => {
+      const file = event.dataTransfer.files[0];
+      if (file) uploadBackup(file);
+    });
+    fileInput.addEventListener('change', () => {
+      const file = fileInput.files[0];
+      if (file) uploadBackup(file);
+      fileInput.value = '';
+    });
+  }
+
+  async function uploadBackup(file) {
+    if (!file) return;
+    if (!/\.zip$/i.test(file.name)) {
+      setText('importStatus', 'Selecciona el archivo .zip del backup de BYDMate.');
+      return;
+    }
+    setText('importStatus', 'Subiendo backup…');
+    try {
+      const response = await fetch('/api/import', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/zip' },
+        body: file,
+      });
+      const result = await response.json().catch(() => ({}));
+      if (response.status === 401) {
+        setText('importStatus', 'La sesión venció. Recarga la página y vuelve a entrar.');
+        return;
+      }
+      if (!response.ok) throw new Error(result.error || 'No se pudo importar.');
+      setText('importStatus', `Listo: ${result.trips} viajes y ${result.charges} cargas importadas.`);
+      toast(`Importados ${result.trips} viajes y ${result.charges} cargas.`);
+      await refresh();
+      state.tripsTab = 'trips';
+      applyTripsTab();
+      setTimeout(() => {
+        $('importModal').hidden = true;
+      }, 1400);
+    } catch (err) {
+      setText('importStatus', `Error: ${err.message}`);
+    }
+  }
+
+  setupTripsUI();
 
   /* ------------------------------------------------------------------ */
   /* Mapa                                                               */
@@ -438,11 +722,17 @@
       return;
     }
     const map = L.map('map', { zoomControl: false, attributionControl: true }).setView([4.6486, -74.0624], 12);
-    L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png', {
+    const osm = L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png', {
+      maxZoom: 19,
+      attribution: '&copy; OpenStreetMap contributors',
+    });
+    const carto = L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png', {
       attribution: '&copy; OpenStreetMap &copy; CARTO',
       subdomains: 'abcd',
       maxZoom: 20,
-    }).addTo(map);
+    });
+    osm.addTo(map);
+    L.control.layers({ Mapa: osm, Oscuro: carto }, null, { position: 'topright' }).addTo(map);
     L.control.zoom({ position: 'bottomleft' }).addTo(map);
 
     const icon = L.divIcon({
@@ -485,6 +775,18 @@
     }
   }
 
+  const gmapsBtn = $('gmapsBtn');
+  if (gmapsBtn) {
+    gmapsBtn.addEventListener('click', () => {
+      const vehicle = state.data && state.data.vehicle;
+      if (vehicle && vehicle.lat != null && vehicle.lon != null) {
+        window.open(`https://www.google.com/maps?q=${vehicle.lat},${vehicle.lon}`, '_blank', 'noopener');
+      } else {
+        toast('Todavía no tengo la ubicación del carro.');
+      }
+    });
+  }
+
   function showTripOnMap(trip) {
     setView('map');
     setTimeout(() => {
@@ -524,11 +826,51 @@
     }
   }
 
+  function stationParts(name) {
+    const raw = String(name || '').trim();
+    let brand = raw.split(/[\(,\-–|]/)[0].trim().replace(/\s+/g, ' ');
+    if (!brand) brand = raw;
+    let city = '';
+    const match = raw.match(/\(([^)]+)\)/);
+    if (match) {
+      const first = match[1].split(',')[0].trim();
+      const looksLikeCity =
+        first &&
+        first.length <= 24 &&
+        !/\d|fm|am|mhz|khz|hz|señal|senal|emisora/i.test(first) &&
+        !/^[A-Z]{3,5}$/.test(first);
+      if (looksLikeCity) city = first;
+    }
+    return { brand, city };
+  }
+
+  function stationInitials(brand) {
+    const words = String(brand || '').split(/\s+/).filter(Boolean);
+    if (words.length >= 2) return `${words[0][0]}${words[1][0]}`.toUpperCase();
+    return String(brand || '?').slice(0, 2).toUpperCase();
+  }
+
+  function stationHue(name) {
+    let hash = 0;
+    for (const char of String(name || '')) hash = (hash * 31 + char.charCodeAt(0)) % 360;
+    return hash;
+  }
+
+  function stationGradient(brand) {
+    const hue = stationHue(brand);
+    return `linear-gradient(135deg, hsl(${hue} 72% 42%), hsl(${(hue + 45) % 360} 70% 26%))`;
+  }
+
   function renderRadioList(filter) {
     const list = $('radioList');
     list.innerHTML = '';
     const needle = filter.trim().toLowerCase();
-    const items = state.stations.filter((s) => !needle || s.name.toLowerCase().includes(needle) || (s.tags || '').toLowerCase().includes(needle));
+    const items = state.stations.filter(
+      (station) =>
+        !needle ||
+        station.name.toLowerCase().includes(needle) ||
+        (station.tags || '').toLowerCase().includes(needle)
+    );
 
     if (!items.length) {
       list.appendChild(el('div', 'empty', 'No hay emisoras que coincidan.'));
@@ -536,27 +878,52 @@
     }
 
     items.forEach((station) => {
-      const btn = el('button', 'station');
-      btn.type = 'button';
-      if (state.station && state.station.id === station.id) btn.classList.add('is-playing');
+      const { brand, city } = stationParts(station.name);
+      const playing = Boolean(state.station && state.station.id === station.id);
+      const card = el('button', 'station');
+      card.type = 'button';
+      if (playing) card.classList.add('is-playing');
 
-      const img = el('img', 'station-favicon');
-      img.alt = '';
-      img.loading = 'lazy';
-      if (station.favicon) img.src = station.favicon;
-      img.addEventListener('error', () => {
-        img.remove();
-      });
+      const logo = el('div', 'station-logo');
+      const fallback = el('span', 'station-fallback', stationInitials(brand));
+      fallback.style.background = stationGradient(brand);
+      logo.appendChild(fallback);
+
+      if (station.favicon) {
+        const img = el('img', 'station-logo-img');
+        img.alt = '';
+        img.loading = 'lazy';
+        img.referrerPolicy = 'no-referrer';
+        img.addEventListener('load', () => {
+          fallback.hidden = true;
+        });
+        img.addEventListener('error', () => img.remove());
+        img.src = station.favicon.replace(/^http:/i, 'https:');
+        if (img.complete && img.naturalWidth > 0) fallback.hidden = true;
+        logo.appendChild(img);
+      }
 
       const body = el('div', 'station-body');
-      body.appendChild(el('strong', '', station.name));
-      body.appendChild(el('span', '', [station.tags, station.bitrate ? `${station.bitrate} kbps` : ''].filter(Boolean).join(' · ') || 'Colombia'));
+      body.appendChild(el('strong', 'station-name', brand));
+      if (city) body.appendChild(el('span', 'station-city', city));
 
-      btn.appendChild(img);
-      btn.appendChild(body);
-      if (station.codec) btn.appendChild(el('span', 'station-badge', station.codec));
-      btn.addEventListener('click', () => playStation(station));
-      list.appendChild(btn);
+      const indicator = el('span', 'station-play');
+      if (playing) {
+        const eq = el('span', 'eq');
+        eq.appendChild(el('i'));
+        eq.appendChild(el('i'));
+        eq.appendChild(el('i'));
+        indicator.appendChild(eq);
+      } else {
+        indicator.textContent = '▶';
+      }
+
+      card.appendChild(logo);
+      card.appendChild(body);
+      card.appendChild(indicator);
+      card.setAttribute('aria-label', `Reproducir ${brand}${city ? ` ${city}` : ''}`);
+      card.addEventListener('click', () => playStation(station));
+      list.appendChild(card);
     });
   }
 
@@ -577,8 +944,34 @@
 
   function updatePlayer() {
     const station = state.station;
-    setText('playerName', station ? station.name : 'Selecciona una emisora');
-    setText('playerMeta', station ? [station.tags, station.bitrate ? `${station.bitrate} kbps` : ''].filter(Boolean).join(' · ') || 'Colombia' : '—');
+    const parts = station ? stationParts(station.name) : null;
+    const name = station ? (parts.city ? `${parts.brand} · ${parts.city}` : parts.brand) : 'Selecciona una emisora';
+    setText('playerName', name);
+    setText(
+      'playerMeta',
+      station ? [station.tags, station.bitrate ? `${station.bitrate} kbps` : ''].filter(Boolean).join(' · ') || 'Colombia' : '—'
+    );
+
+    const logo = $('playerLogo');
+    if (logo) {
+      logo.innerHTML = '';
+      const fallback = el('span', 'player-initials', station ? stationInitials(parts.brand) : '♪');
+      fallback.style.background = station ? stationGradient(parts.brand) : 'linear-gradient(135deg, #1e2a3a, #0e1520)';
+      logo.appendChild(fallback);
+      if (station && station.favicon) {
+        const img = el('img', 'player-logo-img');
+        img.alt = '';
+        img.referrerPolicy = 'no-referrer';
+        img.addEventListener('load', () => {
+          fallback.hidden = true;
+        });
+        img.addEventListener('error', () => img.remove());
+        img.src = station.favicon.replace(/^http:/i, 'https:');
+        if (img.complete && img.naturalWidth > 0) fallback.hidden = true;
+        logo.appendChild(img);
+      }
+    }
+
     $('playBtn').textContent = state.playing ? '❚❚' : '▶';
     $('playBtn').setAttribute('aria-label', state.playing ? 'Pausar' : 'Reproducir');
   }
@@ -640,6 +1033,7 @@
     if (!config) return;
     $('capacityInput').value = config.capacityKwh ?? 60.5;
     $('tariffInput').value = config.tariffCop ?? 750;
+    $('consumptionInput').value = config.avgConsumption ?? 23.9;
     $('demoToggle').checked = Boolean(config.demo);
     const url = `${location.origin}/api/webhook`;
     setText('webhookUrl', url);
@@ -659,6 +1053,7 @@
     const payload = {
       capacityKwh: Number($('capacityInput').value),
       tariffCop: Number($('tariffInput').value),
+      avgConsumption: Number($('consumptionInput').value),
       demo: $('demoToggle').checked,
     };
     try {
@@ -710,6 +1105,254 @@
 
   refresh();
   setInterval(refresh, 3000);
+
+  /* ------------------------------------------------------------------ */
+  /* Comandos por voz (experimental)                                     */
+  /* ------------------------------------------------------------------ */
+
+  const CAR_COMMANDS = [
+    { id: 'windows-open', category: 'Ventanas', label: 'Bajar todas', icon: '⇅', en: 'open all windows', zh: '车窗全开' },
+    { id: 'windows-close', category: 'Ventanas', label: 'Subir todas', icon: '⇵', en: 'close all windows', zh: '车窗关闭' },
+    { id: 'windows-front-open', category: 'Ventanas', label: 'Delanteras abajo', icon: '⇈', en: 'open the front windows', zh: '前排车窗全开' },
+    { id: 'windows-front-close', category: 'Ventanas', label: 'Delanteras arriba', icon: '⇊', en: 'close the front windows', zh: '前排车窗关闭' },
+    { id: 'windows-rear-open', category: 'Ventanas', label: 'Traseras abajo', icon: '⇊', en: 'open the rear windows', zh: '后排车窗全开' },
+    { id: 'windows-rear-close', category: 'Ventanas', label: 'Traseras arriba', icon: '⇈', en: 'close the rear windows', zh: '后排车窗关闭' },
+    { id: 'windows-vent', category: 'Ventanas', label: 'Ventilar', icon: '≈', en: 'ventilate the windows', zh: '车窗通风' },
+    { id: 'trunk-open', category: 'Acceso', label: 'Abrir baúl', icon: '▤', en: 'open the trunk', zh: '开后备箱' },
+    { id: 'trunk-close', category: 'Acceso', label: 'Cerrar baúl', icon: '▥', en: 'close the trunk', zh: '关后备箱' },
+    { id: 'lock', category: 'Acceso', label: 'Bloquear puertas', icon: '🔒', en: 'lock the doors', zh: '车门上锁' },
+    { id: 'unlock', category: 'Acceso', label: 'Desbloquear', icon: '🔓', en: 'unlock the doors', zh: '车门解锁' },
+    { id: 'ac-on', category: 'Clima', label: 'Aire automático', icon: '❄', en: 'turn on the air conditioning', zh: '自动空调' },
+    { id: 'ac-off', category: 'Clima', label: 'Apagar aire', icon: '⏻', en: 'turn off the air conditioning', zh: '关闭空调' },
+    { id: 'ac-22', category: 'Clima', label: 'Temperatura 22°', icon: '22', en: 'set the temperature to 22 degrees', zh: '设置温度22' },
+    { id: 'defrost', category: 'Clima', label: 'Desempañar', icon: '♨', en: 'defrost the windshield', zh: '吹前挡' },
+    { id: 'sunroof-open', category: 'Techo', label: 'Abrir techo', icon: '☀', en: 'open the sunroof', zh: '天窗打开100' },
+    { id: 'sunroof-close', category: 'Techo', label: 'Cerrar techo', icon: '☁', en: 'close the sunroof', zh: '天窗打开0' },
+  ];
+
+  function commandSpeed() {
+    const vehicle = state.data && state.data.vehicle;
+    const raw = vehicle ? vehicle.speedKmh : null;
+    if (raw === null || raw === undefined || raw === '') return null;
+    const speed = Number(raw);
+    return Number.isFinite(speed) ? speed : null;
+  }
+
+  function updateCommandsStatus() {
+    const speed = commandSpeed();
+    const moving = speed !== null && speed > 5;
+    setText('commandsSpeed', `Velocidad: ${speed !== null ? fmt0(speed) : '—'} km/h`);
+    const badge = $('commandsBlocked');
+    if (badge) {
+      badge.textContent = moving ? 'Bloqueado en movimiento' : 'Solo parqueado';
+      badge.className = `badge ${moving ? 'badge-driving' : 'badge-charging'}`;
+    }
+    const list = $('commandsList');
+    if (list) list.classList.toggle('is-blocked', moving);
+  }
+
+  function renderCommands() {
+    const list = $('commandsList');
+    if (!list) return;
+    list.innerHTML = '';
+    const categories = ['Ventanas', 'Acceso', 'Clima', 'Techo'];
+    for (const category of categories) {
+      const group = el('div', 'commands-group');
+      group.appendChild(el('h3', 'commands-group-title', category));
+      const grid = el('div', 'commands-grid');
+      for (const command of CAR_COMMANDS.filter((item) => item.category === category)) {
+        const card = el('button', 'command-card');
+        card.type = 'button';
+        card.dataset.command = command.id;
+        card.appendChild(el('span', 'command-icon', command.icon));
+        const body = el('span', 'command-body');
+        body.appendChild(el('strong', '', command.label));
+        body.appendChild(el('small', '', state.commandLang === 'zh' ? command.zh : command.en));
+        card.appendChild(body);
+        card.appendChild(el('span', 'command-play', '▶'));
+        grid.appendChild(card);
+      }
+      group.appendChild(grid);
+      list.appendChild(group);
+    }
+    updateCommandsStatus();
+  }
+
+  function voiceForCommand(lang) {
+    if (!('speechSynthesis' in window)) return null;
+    const prefix = lang === 'zh' ? 'zh' : 'en';
+    return window.speechSynthesis.getVoices().find((voice) => voice.lang.toLowerCase().startsWith(prefix)) || null;
+  }
+
+  function speakCarPhrase(text, lang) {
+    if (!('speechSynthesis' in window)) {
+      setText('commandStatus', 'Este navegador no tiene voz. Prueba en Chrome.');
+      return;
+    }
+    setText('commandPhrase', text);
+    try {
+      window.speechSynthesis.cancel();
+      const utterance = new SpeechSynthesisUtterance(text);
+      utterance.lang = lang === 'zh' ? 'zh-CN' : 'en-US';
+      utterance.rate = 0.9;
+      utterance.volume = 1;
+      const voice = voiceForCommand(lang);
+      if (voice) utterance.voice = voice;
+      utterance.onstart = () => setText('commandStatus', 'Reproduciendo la frase…');
+      utterance.onend = () =>
+        setText('commandStatus', 'Frase enviada. Si el asistente no responde, revisa que esté activo y escuchando.');
+      utterance.onerror = () =>
+        setText('commandStatus', 'No se pudo reproducir. Instala la voz del idioma en Android o usa English.');
+      window.speechSynthesis.speak(utterance);
+      if (!voice) {
+        setText(
+          'commandStatus',
+          lang === 'zh'
+            ? 'No hay voz china instalada; se intentará con la voz por defecto.'
+            : 'No hay voz inglesa instalada; se intentará con la voz por defecto.'
+        );
+      }
+    } catch {
+      setText('commandStatus', 'No se pudo iniciar la voz.');
+    }
+  }
+
+  function runCommand(id) {
+    const command = CAR_COMMANDS.find((item) => item.id === id);
+    if (!command) return;
+    const speed = commandSpeed();
+    if (speed !== null && speed > 5) {
+      toast('Detén el carro para usar los comandos.');
+      updateCommandsStatus();
+      return;
+    }
+    const lang = state.commandLang;
+    const phrase = lang === 'zh' ? command.zh : command.en;
+    const wake = state.commandWake ? (lang === 'zh' ? '你好小迪，' : 'Hi BYD, ') : '';
+    speakCarPhrase(`${wake}${phrase}`, lang);
+  }
+
+  function setupCommandsUI() {
+    document.querySelectorAll('#commandLang [data-lang]').forEach((button) => {
+      button.addEventListener('click', () => {
+        state.commandLang = button.dataset.lang;
+        document.querySelectorAll('#commandLang .seg').forEach((item) => item.classList.toggle('is-active', item === button));
+        renderCommands();
+      });
+    });
+
+    const wake = $('commandWake');
+    if (wake) {
+      wake.addEventListener('change', () => {
+        state.commandWake = wake.checked;
+      });
+    }
+
+    const stop = $('commandStop');
+    if (stop) {
+      stop.addEventListener('click', () => {
+        if ('speechSynthesis' in window) window.speechSynthesis.cancel();
+        setText('commandStatus', 'Voz detenida.');
+      });
+    }
+
+    const test = $('commandTest');
+    if (test) {
+      test.addEventListener('click', () => {
+        const lang = state.commandLang;
+        speakCarPhrase(lang === 'zh' ? '你好小迪' : 'Hi BYD', lang);
+      });
+    }
+
+    const custom = $('commandCustom');
+    const customPlay = $('commandCustomPlay');
+    if (custom && customPlay) {
+      const playCustom = () => {
+        const text = custom.value.trim();
+        if (!text) {
+          toast('Escribe una frase para reproducir.');
+          return;
+        }
+        speakCarPhrase(text, state.commandLang);
+      };
+      customPlay.addEventListener('click', playCustom);
+      custom.addEventListener('keydown', (event) => {
+        if (event.key === 'Enter') {
+          event.preventDefault();
+          playCustom();
+        }
+      });
+    }
+
+    const list = $('commandsList');
+    if (list) {
+      list.addEventListener('click', (event) => {
+        const card = event.target.closest('[data-command]');
+        if (card) runCommand(card.dataset.command);
+      });
+    }
+  }
+
+  renderCommands();
+  setupCommandsUI();
+
+  /* ------------------------------------------------------------------ */
+  /* Instalación de la PWA (Android)                                     */
+  /* ------------------------------------------------------------------ */
+
+  let deferredInstallPrompt = null;
+
+  function isStandaloneApp() {
+    return window.matchMedia('(display-mode: standalone)').matches || window.navigator.standalone === true;
+  }
+
+  function updateInstallUI() {
+    const button = $('installBtn');
+    if (!button) return;
+    if (isStandaloneApp()) {
+      button.hidden = true;
+      setText('installStatus', 'Ya está instalada en este dispositivo. Se abre como app.');
+      return;
+    }
+    if (deferredInstallPrompt) {
+      button.hidden = false;
+      setText('installStatus', 'Toca el botón para instalarla en tu celular.');
+    } else {
+      button.hidden = true;
+      setText('installStatus', 'Cuando Chrome la tenga lista, aquí aparecerá el botón. Si no, usa el menú ⋮ → Instalar aplicación.');
+    }
+  }
+
+  window.addEventListener('beforeinstallprompt', (event) => {
+    event.preventDefault();
+    deferredInstallPrompt = event;
+    updateInstallUI();
+  });
+
+  window.addEventListener('appinstalled', () => {
+    deferredInstallPrompt = null;
+    updateInstallUI();
+    toast('Aplicación instalada en el celular.');
+  });
+
+  $('installBtn').addEventListener('click', async () => {
+    if (!deferredInstallPrompt) {
+      setText('installStatus', 'Usa el menú de Chrome: ⋮ → Instalar aplicación.');
+      return;
+    }
+    deferredInstallPrompt.prompt();
+    const choice = await deferredInstallPrompt.userChoice;
+    deferredInstallPrompt = null;
+    if (choice.outcome === 'accepted') {
+      setText('installStatus', 'Instalando…');
+      toast('Instalando la app…');
+    } else {
+      setText('installStatus', 'Instalación cancelada. Puedes intentarlo otra vez desde el menú de Chrome.');
+    }
+    updateInstallUI();
+  });
+
+  updateInstallUI();
 
   /* ------------------------------------------------------------------ */
   /* Asistente de voz                                                   */

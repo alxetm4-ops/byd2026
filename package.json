@@ -9,5 +9,9 @@
   },
   "engines": {
     "node": ">=20"
+  },
+  "dependencies": {
+    "fflate": "^0.8.2",
+    "sql.js": "^1.13.0"
   }
 }
