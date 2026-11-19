@@ -4071,6 +4071,12 @@ body {
   min-height: 100px;
 }
 
+.music-pick {
+  width: auto;
+  min-width: 210px;
+  margin-top: 10px;
+}
+
 .legal-links {
   display: flex;
   align-items: center;

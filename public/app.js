@@ -1361,8 +1361,8 @@
     });
   }
 
-  async function loadMusic() {
-    if (state.music.loading) return;
+  async function loadMusic(force = false) {
+    if (state.music.loading && !force) return;
     state.music.loading = true;
     try {
       const data = await api('/api/music');
@@ -1433,7 +1433,11 @@
 
   async function uploadMusic(fileList) {
     const files = Array.from(fileList || []).filter((file) => file && file.size > 0);
-    if (!files.length) return;
+    if (!files.length) {
+      setText('musicUploadStatus', 'No se recibieron archivos. Usa “Elegir archivos MP3”.');
+      return;
+    }
+    let latestTracks = null;
     for (let i = 0; i < files.length; i += 1) {
       const file = files[i];
       setText('musicUploadStatus', `Subiendo ${i + 1} de ${files.length}: ${file.name}…`);
@@ -1452,13 +1456,22 @@
           return;
         }
         if (!response.ok) throw new Error(result.error || 'No se pudo subir.');
+        if (Array.isArray(result.tracks)) latestTracks = result.tracks;
       } catch (err) {
         setText('musicUploadStatus', `Error con ${file.name}: ${err.message}`);
         return;
       }
     }
-    setText('musicUploadStatus', 'Subida completa. Actualizando biblioteca…');
-    await loadMusic();
+    if (latestTracks) {
+      state.music.tracks = latestTracks;
+      state.music.loaded = true;
+      state.music.loading = false;
+      renderMusic();
+      updateMusicUI();
+    } else {
+      setText('musicUploadStatus', 'Subida completa. Actualizando biblioteca…');
+      await loadMusic(true);
+    }
     setText('musicUploadStatus', `Listo: ${state.music.tracks.length} canciones en la biblioteca.`);
   }
 
@@ -1505,6 +1518,8 @@
 
     const fileInput = $('musicFile');
     const drop = $('musicDrop');
+    const pick = $('musicPickBtn');
+    if (pick && fileInput) pick.addEventListener('click', () => fileInput.click());
     if (drop && fileInput) {
       drop.addEventListener('click', () => fileInput.click());
       drop.addEventListener('keydown', (event) => {
@@ -1525,12 +1540,29 @@
           drop.classList.remove('is-dragover');
         });
       });
-      drop.addEventListener('drop', (event) => uploadMusic(event.dataTransfer.files));
+      drop.addEventListener('drop', (event) => {
+        event.preventDefault();
+        event.stopPropagation();
+        const files = event.dataTransfer && event.dataTransfer.files;
+        if (!files || !files.length) {
+          setText('musicUploadStatus', 'El navegador no entregó archivos. Usa “Elegir archivos MP3”.');
+          return;
+        }
+        uploadMusic(files);
+      });
       fileInput.addEventListener('change', () => {
         uploadMusic(fileInput.files);
         fileInput.value = '';
       });
     }
+
+    // Evita que el navegador abra el archivo si se suelta fuera de la zona.
+    window.addEventListener('dragover', (event) => event.preventDefault());
+    window.addEventListener('drop', (event) => {
+      if (event.target && event.target.closest && event.target.closest('#view-multimedia')) {
+        event.preventDefault();
+      }
+    });
 
     audio.addEventListener('play', () => {
       state.music.playing = true;
