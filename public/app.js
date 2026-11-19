@@ -170,8 +170,15 @@
       ring.style.strokeDashoffset = RING_CIRCUNFERENCIA;
       ring.style.stroke = 'var(--muted)';
       $('socValue').innerHTML = '—';
-      ['rangeValue', 'odoValue', 'consumptionValue', 'powerValue', 'speedValue', 'batteryTempValue', 'batteryTempRow', 'cabinTempValue', 'outsideTempValue', 'v12Value', 'hvCurrentValue', 'hvacValue', 'chargingRow', 'tireFl', 'tireFr', 'tireRl', 'tireRr'].forEach((id) => setText(id, '—'));
+      ['rangeValue', 'odoValue', 'consumptionValue', 'powerValue', 'speedValue', 'batteryTempValue', 'batteryTempRow', 'cabinTempValue', 'outsideTempValue', 'v12Value', 'hvCurrentValue', 'hvacValue', 'chargingRow', 'tireFl', 'tireFr', 'tireRl', 'tireRr', 'sohValue'].forEach((id) => setText(id, '—'));
       setText('sohChip', 'Sin datos');
+      setText('cockpitModel', 'EV · — kWh');
+      const emptyOrb = $('sohOrb');
+      if (emptyOrb) emptyOrb.style.setProperty('--soh', '0');
+      const emptySocOrb = document.querySelector('.soc-orb');
+      if (emptySocOrb) emptySocOrb.style.setProperty('--soc', '0');
+      const emptySocArc = document.querySelector('.soc-arc');
+      if (emptySocArc) emptySocArc.style.background = 'none';
       setText('chargeBadge', 'Sin datos');
       $('chargeBadge').className = 'badge';
       setText('modeNote', 'Conecta BYDMate para ver datos reales');
@@ -186,6 +193,12 @@
     const offset = RING_CIRCUNFERENCIA * (1 - soc / 100);
     ring.style.strokeDashoffset = offset;
     ring.style.stroke = soc <= 20 ? 'var(--danger)' : soc <= 40 ? 'var(--warn)' : 'var(--accent)';
+    const socOrb = ring.closest('.soc-orb') || document.querySelector('.soc-orb');
+    if (socOrb) socOrb.style.setProperty('--soc', String(soc));
+    const socArc = document.querySelector('.soc-arc');
+    if (socArc) {
+      socArc.style.background = `conic-gradient(from -90deg, var(--accent) 0 ${soc}%, rgba(110, 231, 255, 0.07) ${soc}% 100%)`;
+    }
     $('socValue').innerHTML = `${Math.round(soc)}<span>%</span>`;
 
     setText('rangeValue', fmt0(v.rangeKm));
@@ -225,6 +238,18 @@
     setText('chargingRow', chargeText);
 
     setText('sohChip', v.soh != null ? `SoH ${fmt1(v.soh)} %` : 'SoH —');
+    const soh = Number(v.soh);
+    if (Number.isFinite(soh)) {
+      setText('sohValue', fmt1(soh));
+      const orb = $('sohOrb');
+      if (orb) orb.style.setProperty('--soh', String(Math.max(0, Math.min(100, soh))));
+    } else {
+      setText('sohValue', '—');
+      const orb = $('sohOrb');
+      if (orb) orb.style.setProperty('--soh', '0');
+    }
+    const capacity = state.config && Number(state.config.capacityKwh) ? Number(state.config.capacityKwh) : 60.5;
+    setText('cockpitModel', `${v.carModel ? String(v.carModel).toUpperCase() : 'YUAN PLUS'} · ${fmt1(capacity)} kWh`);
 
     setTire('tireFl', v.tireFl);
     setTire('tireFr', v.tireFr);
@@ -250,7 +275,10 @@
       banner.hidden = true;
     }
 
-    if (state.view === 'dashboard') drawSpark();
+    if (state.view === 'dashboard') {
+      drawSpark();
+      drawPowerChart();
+    }
   }
 
   function setTire(id, value) {
@@ -274,7 +302,7 @@
     const canvas = $('sparkCanvas');
     if (!canvas) return;
     const width = canvas.clientWidth || 600;
-    const height = 120;
+    const height = canvas.clientHeight || 150;
     const dpr = window.devicePixelRatio || 1;
     canvas.width = Math.max(1, Math.round(width * dpr));
     canvas.height = Math.round(height * dpr);
@@ -318,8 +346,8 @@
     });
 
     const gradient = ctx.createLinearGradient(0, padY, 0, height);
-    gradient.addColorStop(0, 'rgba(0, 209, 178, 0.28)');
-    gradient.addColorStop(1, 'rgba(0, 209, 178, 0)');
+    gradient.addColorStop(0, 'rgba(0, 240, 255, 0.3)');
+    gradient.addColorStop(1, 'rgba(0, 240, 255, 0)');
 
     ctx.lineTo(width - padX, height - padY);
     ctx.lineTo(padX, height - padY);
@@ -334,25 +362,169 @@
       if (index === 0) ctx.moveTo(x, y);
       else ctx.lineTo(x, y);
     });
-    ctx.strokeStyle = '#00d1b2';
+    ctx.strokeStyle = '#00f0ff';
     ctx.lineWidth = 2.2;
     ctx.lineJoin = 'round';
+    ctx.shadowColor = 'rgba(0, 240, 255, 0.65)';
+    ctx.shadowBlur = 10;
     ctx.stroke();
+    ctx.shadowBlur = 0;
 
     const lastX = padX + (points.length - 1) * stepX;
     const lastY = yFor(points[points.length - 1]);
     ctx.beginPath();
     ctx.arc(lastX, lastY, 3.6, 0, Math.PI * 2);
-    ctx.fillStyle = '#00d1b2';
+    ctx.fillStyle = '#00f0ff';
     ctx.fill();
 
-    ctx.fillStyle = 'rgba(232, 238, 247, 0.92)';
-    ctx.font = '600 13px "Segoe UI", system-ui, sans-serif';
+    ctx.fillStyle = 'rgba(223, 251, 255, 0.95)';
+    ctx.font = '600 13px "Bahnschrift", "Segoe UI", system-ui, sans-serif';
     ctx.fillText(`${nf1.format(points[points.length - 1])} kWh/100 km`, padX, 12);
   }
 
+  function drawPowerChart() {
+    const canvas = $('powerCanvas');
+    if (!canvas) return;
+    const width = canvas.clientWidth || 600;
+    const height = canvas.clientHeight || 200;
+    const dpr = window.devicePixelRatio || 1;
+    canvas.width = Math.max(1, Math.round(width * dpr));
+    canvas.height = Math.round(height * dpr);
+    const ctx = canvas.getContext('2d');
+    ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+    ctx.clearRect(0, 0, width, height);
+
+    const history = ((state.data && state.data.history) || []).slice(-90);
+    const points = history.map((sample) => ({
+      power: Number.isFinite(Number(sample.powerKw)) ? Number(sample.powerKw) : null,
+      speed: Number.isFinite(Number(sample.speedKmh)) ? Number(sample.speedKmh) : null,
+    }));
+
+    if (points.length < 2) {
+      ctx.fillStyle = 'rgba(127, 155, 181, 0.75)';
+      ctx.font = '13px "Bahnschrift", "Segoe UI", system-ui, sans-serif';
+      ctx.fillText('Sin datos suficientes todavía…', 8, height / 2);
+      return;
+    }
+
+    const powerValues = points.map((point) => point.power).filter((value) => value !== null);
+    const speedValues = points.map((point) => point.speed).filter((value) => value !== null);
+    const maxPower = Math.max(5, ...powerValues.map((value) => Math.abs(value)));
+    const maxSpeed = Math.max(10, ...speedValues);
+    const padX = 8;
+    const padY = 20;
+    const stepX = (width - padX * 2) / Math.max(1, points.length - 1);
+    const zeroY = height / 2;
+    const powerY = (value) => zeroY - (value / maxPower) * (height / 2 - padY);
+    const speedY = (value) => height - padY - (value / maxSpeed) * (height - padY * 2);
+
+    ctx.strokeStyle = 'rgba(110, 231, 255, 0.1)';
+    ctx.lineWidth = 1;
+    for (let i = 0; i < 4; i += 1) {
+      const y = padY + ((height - padY * 2) / 3) * i;
+      ctx.beginPath();
+      ctx.moveTo(padX, y);
+      ctx.lineTo(width - padX, y);
+      ctx.stroke();
+    }
+
+    ctx.strokeStyle = 'rgba(110, 231, 255, 0.2)';
+    ctx.setLineDash([4, 6]);
+    ctx.beginPath();
+    ctx.moveTo(padX, zeroY);
+    ctx.lineTo(width - padX, zeroY);
+    ctx.stroke();
+    ctx.setLineDash([]);
+
+    // Área de potencia
+    ctx.beginPath();
+    let started = false;
+    points.forEach((point, index) => {
+      if (point.power === null) return;
+      const x = padX + index * stepX;
+      const y = powerY(point.power);
+      if (!started) {
+        ctx.moveTo(x, zeroY);
+        ctx.lineTo(x, y);
+        started = true;
+      } else {
+        ctx.lineTo(x, y);
+      }
+    });
+    if (started) {
+      const lastIndex = points.reduce((acc, point, index) => (point.power !== null ? index : acc), 0);
+      ctx.lineTo(padX + lastIndex * stepX, zeroY);
+      ctx.closePath();
+      const powerFill = ctx.createLinearGradient(0, padY, 0, height - padY);
+      powerFill.addColorStop(0, 'rgba(0, 240, 255, 0.34)');
+      powerFill.addColorStop(0.55, 'rgba(0, 240, 255, 0.08)');
+      powerFill.addColorStop(1, 'rgba(0, 240, 255, 0)');
+      ctx.fillStyle = powerFill;
+      ctx.fill();
+    }
+
+    // Línea de potencia
+    ctx.beginPath();
+    started = false;
+    points.forEach((point, index) => {
+      if (point.power === null) return;
+      const x = padX + index * stepX;
+      const y = powerY(point.power);
+      if (!started) {
+        ctx.moveTo(x, y);
+        started = true;
+      } else {
+        ctx.lineTo(x, y);
+      }
+    });
+    ctx.strokeStyle = '#00f0ff';
+    ctx.lineWidth = 2;
+    ctx.lineJoin = 'round';
+    ctx.shadowColor = 'rgba(0, 240, 255, 0.55)';
+    ctx.shadowBlur = 10;
+    ctx.stroke();
+    ctx.shadowBlur = 0;
+
+    // Línea de velocidad
+    ctx.beginPath();
+    started = false;
+    points.forEach((point, index) => {
+      if (point.speed === null) return;
+      const x = padX + index * stepX;
+      const y = speedY(point.speed);
+      if (!started) {
+        ctx.moveTo(x, y);
+        started = true;
+      } else {
+        ctx.lineTo(x, y);
+      }
+    });
+    ctx.strokeStyle = '#8b5cf6';
+    ctx.lineWidth = 1.8;
+    ctx.setLineDash([7, 5]);
+    ctx.stroke();
+    ctx.setLineDash([]);
+
+    const lastPower = [...powerValues].pop();
+    const lastSpeed = [...speedValues].pop();
+    ctx.font = '600 11px "Bahnschrift", "Segoe UI", system-ui, sans-serif';
+    if (lastPower !== undefined) {
+      ctx.fillStyle = '#80f7ff';
+      ctx.fillText(`${nf1.format(lastPower)} kW`, padX, 12);
+    }
+    if (lastSpeed !== undefined) {
+      ctx.fillStyle = '#c4b5fd';
+      ctx.textAlign = 'right';
+      ctx.fillText(`${nf0.format(lastSpeed)} km/h`, width - padX, 12);
+      ctx.textAlign = 'left';
+    }
+  }
+
   window.addEventListener('resize', () => {
-    if (state.view === 'dashboard') drawSpark();
+    if (state.view === 'dashboard') {
+      drawSpark();
+      drawPowerChart();
+    }
     if (state.map) state.map.invalidateSize();
   });
 

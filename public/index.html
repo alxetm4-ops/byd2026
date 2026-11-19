@@ -3,16 +3,26 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
-  <meta name="theme-color" content="#0b0f14" />
+  <meta name="theme-color" content="#03060b" />
   <meta name="description" content="Tablero en español para BYD Yuan Plus 2026 — telemetría, viajes, mapa y radio para Colombia." />
   <title>BYD Colombia · Yuan Plus 2026</title>
   <link rel="manifest" href="/manifest.webmanifest" />
   <link rel="icon" href="/icons/icon.svg" type="image/svg+xml" />
   <link rel="apple-touch-icon" href="/icons/icon-192.png" />
   <link rel="stylesheet" href="/vendor/leaflet/leaflet.css" />
-  <link rel="stylesheet" href="/styles.css?v=13" />
+  <link rel="stylesheet" href="/styles.css?v=14" />
 </head>
 <body>
+  <div class="fx-bg" aria-hidden="true">
+    <div class="fx-aurora fx-aurora-a"></div>
+    <div class="fx-aurora fx-aurora-b"></div>
+    <div class="fx-grid"></div>
+    <div class="fx-car"></div>
+    <div class="fx-word">BYD</div>
+    <div class="fx-scan"></div>
+    <div class="fx-vignette"></div>
+  </div>
+
   <div class="app">
     <header class="topbar">
       <div class="brand">
@@ -32,95 +42,181 @@
     <main class="main">
       <!-- ============================ TABLERO ============================ -->
       <section id="view-dashboard" class="view is-active" aria-label="Tablero">
-        <div class="hero card">
-          <div class="ring-wrap">
-            <svg class="soc-ring" viewBox="0 0 220 220" role="img" aria-label="Estado de carga">
-              <circle class="ring-bg" cx="110" cy="110" r="88" />
-              <circle id="socRing" class="ring-fg" cx="110" cy="110" r="88" />
-            </svg>
-            <div class="ring-center">
-              <strong id="socValue">68<span>%</span></strong>
-              <small>Carga</small>
+        <div class="cockpit">
+          <div class="cockpit-corners" aria-hidden="true"><i></i><i></i><i></i><i></i></div>
+          <div class="cockpit-head">
+            <div class="cockpit-title">
+              <span class="eyebrow">BYD · Yuan Plus 2026</span>
+              <h2>Energía a bordo</h2>
+              <p>Panel de control · Colombia</p>
             </div>
-          </div>
-          <div class="hero-body">
-            <div class="hero-top">
+            <div class="cockpit-status">
               <span id="chargeBadge" class="badge badge-idle">En reposo</span>
               <span id="modeNote" class="muted">Datos de demostración</span>
             </div>
-            <div class="hero-range">
-              <strong id="rangeValue">278</strong>
-              <span>km de autonomía</span>
+          </div>
+
+          <div class="cockpit-main">
+            <div class="soc-cluster">
+              <div class="soc-orb">
+                <div class="orb-halo" aria-hidden="true"></div>
+                <div class="soc-arc" aria-hidden="true"></div>
+                <svg class="soc-ring" viewBox="0 0 220 220" role="img" aria-label="Estado de carga">
+                  <circle class="ring-ticks" cx="110" cy="110" r="102" />
+                  <circle class="ring-bg" cx="110" cy="110" r="88" />
+                  <circle id="socRing" class="ring-fg" cx="110" cy="110" r="88" />
+                </svg>
+                <div class="ring-center">
+                  <span class="ring-label">Batería</span>
+                  <strong id="socValue">68<span>%</span></strong>
+                  <small>estado de carga</small>
+                </div>
+                <span class="orb-spark orb-spark-a" aria-hidden="true"></span>
+                <span class="orb-spark orb-spark-b" aria-hidden="true"></span>
+              </div>
+              <div class="soc-readout">
+                <div class="range-block">
+                  <span>Autonomía estimada</span>
+                  <div><strong id="rangeValue">278</strong><em>km</em></div>
+                </div>
+                <div class="soc-meta">
+                  <div><span>Odómetro</span><strong id="odoValue">12.480 km</strong></div>
+                  <div><span>Actualizado</span><strong id="updatedValue">--:--</strong></div>
+                </div>
+              </div>
             </div>
-            <div class="hero-meta">
-              <div><span>Odómetro</span><strong id="odoValue">12.480 km</strong></div>
-              <div><span>Actualizado</span><strong id="updatedValue">--:--</strong></div>
+
+            <div class="car-visual" aria-hidden="true">
+              <div class="car-glow"></div>
+              <img class="car-hero-img" src="/assets/byd-suv.svg" alt="" />
+              <div class="car-scanline"></div>
+              <div class="car-badge">YUAN PLUS <span>2026</span></div>
+              <div class="car-floor"></div>
             </div>
+          </div>
+
+          <div class="cockpit-footer">
+            <span><i class="pulse-dot"></i> BYDMate telemetry</span>
+            <span id="cockpitModel">EV · 60.5 kWh</span>
+            <span>COL · MEDELLÍN</span>
           </div>
         </div>
 
-        <div class="grid grid-4">
-          <article class="card stat">
-            <span class="stat-label">Consumo</span>
-            <strong id="consumptionValue">14,8</strong>
-            <em>kWh / 100 km</em>
+        <div class="hud-stats">
+          <article class="hud-tile">
+            <div class="tile-icon">
+              <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M13 2 4 14h6l-1 8 9-12h-6l1-8Z" /></svg>
+            </div>
+            <div class="tile-content">
+              <span class="stat-label">Consumo</span>
+              <strong id="consumptionValue">14,8</strong>
+              <em>kWh / 100 km</em>
+            </div>
+            <div class="tile-meter"><i style="width: 62%"></i></div>
           </article>
-          <article class="card stat">
-            <span class="stat-label">Potencia</span>
-            <strong id="powerValue">0,0</strong>
-            <em>kW</em>
+          <article class="hud-tile">
+            <div class="tile-icon">
+              <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 12h4l2-6 4 12 2-6h4" /></svg>
+            </div>
+            <div class="tile-content">
+              <span class="stat-label">Potencia</span>
+              <strong id="powerValue">0,0</strong>
+              <em>kW</em>
+            </div>
+            <div class="tile-meter"><i style="width: 38%"></i></div>
           </article>
-          <article class="card stat">
-            <span class="stat-label">Velocidad</span>
-            <strong id="speedValue">0</strong>
-            <em>km/h</em>
+          <article class="hud-tile">
+            <div class="tile-icon">
+              <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 20a8 8 0 1 0-8-8" /><path d="M12 12l4-4" /><circle cx="12" cy="12" r="1.6" /></svg>
+            </div>
+            <div class="tile-content">
+              <span class="stat-label">Velocidad</span>
+              <strong id="speedValue">0</strong>
+              <em>km/h</em>
+            </div>
+            <div class="tile-meter"><i style="width: 22%"></i></div>
           </article>
-          <article class="card stat">
-            <span class="stat-label">Batería</span>
-            <strong id="batteryTempValue">27,5</strong>
-            <em>°C</em>
+          <article class="hud-tile">
+            <div class="tile-icon">
+              <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M10 4h4v9a4 4 0 1 1-4 0V4Z" /><path d="M12 8v5" /></svg>
+            </div>
+            <div class="tile-content">
+              <span class="stat-label">Batería</span>
+              <strong id="batteryTempValue">27,5</strong>
+              <em>°C</em>
+            </div>
+            <div class="tile-meter"><i style="width: 54%"></i></div>
           </article>
         </div>
 
-        <div class="grid grid-2">
-          <article class="card">
+        <div class="dash-charts">
+          <article class="glass power-card">
             <div class="card-head">
-              <h3>Batería y alto voltaje</h3>
+              <div>
+                <span class="eyebrow">Dinámica</span>
+                <h3>Potencia y velocidad</h3>
+              </div>
+              <span class="chart-legend"><i class="lg-power"></i> kW <i class="lg-speed"></i> km/h</span>
+            </div>
+            <canvas id="powerCanvas" height="200" aria-label="Potencia y velocidad"></canvas>
+          </article>
+
+          <article class="glass consumption-card">
+            <div class="card-head">
+              <div>
+                <span class="eyebrow">Eficiencia</span>
+                <h3>Consumo reciente</h3>
+              </div>
+              <span class="muted">últimos minutos</span>
+            </div>
+            <canvas id="sparkCanvas" height="150" aria-label="Consumo"></canvas>
+          </article>
+        </div>
+
+        <div class="dash-lower">
+          <article class="glass battery-card">
+            <div class="card-head">
+              <div>
+                <span class="eyebrow">Alta tensión</span>
+                <h3>Batería</h3>
+              </div>
               <span id="sohChip" class="chip">SoH 99,1 %</span>
             </div>
-            <div class="rows">
-              <div class="row"><span>Temperatura batería</span><strong id="batteryTempRow">27,5 °C</strong></div>
-              <div class="row"><span>Temperatura cabina</span><strong id="cabinTempValue">23 °C</strong></div>
-              <div class="row"><span>Temperatura exterior</span><strong id="outsideTempValue">19 °C</strong></div>
-              <div class="row"><span>Voltaje HV</span><strong id="v12Value">—</strong></div>
-              <div class="row"><span>Corriente HV</span><strong id="hvCurrentValue">—</strong></div>
-              <div class="row"><span>Clima (objetivo)</span><strong id="hvacValue">—</strong></div>
-              <div class="row"><span>Estado</span><strong id="chargingRow">Parqueado</strong></div>
+            <div class="battery-layout">
+              <div class="health-orb" id="sohOrb">
+                <strong id="sohValue">99</strong>
+                <span>SoH %</span>
+              </div>
+              <div class="rows">
+                <div class="row"><span>Temperatura batería</span><strong id="batteryTempRow">27,5 °C</strong></div>
+                <div class="row"><span>Temperatura cabina</span><strong id="cabinTempValue">23 °C</strong></div>
+                <div class="row"><span>Temperatura exterior</span><strong id="outsideTempValue">19 °C</strong></div>
+                <div class="row"><span>Voltaje HV</span><strong id="v12Value">—</strong></div>
+                <div class="row"><span>Corriente HV</span><strong id="hvCurrentValue">—</strong></div>
+                <div class="row"><span>Clima (objetivo)</span><strong id="hvacValue">—</strong></div>
+                <div class="row"><span>Estado</span><strong id="chargingRow">Parqueado</strong></div>
+              </div>
             </div>
           </article>
 
-          <article class="card">
+          <article class="glass tires-card">
             <div class="card-head">
-              <h3>Presión de llantas</h3>
+              <div>
+                <span class="eyebrow">Chasis</span>
+                <h3>Presión de llantas</h3>
+              </div>
               <span class="muted">bar</span>
             </div>
-            <div class="tires">
-              <div class="tire"><span>Del. izq.</span><strong id="tireFl">2,4</strong></div>
-              <div class="tire"><span>Del. der.</span><strong id="tireFr">2,4</strong></div>
-              <div class="tire"><span>Tras. izq.</span><strong id="tireRl">2,4</strong></div>
-              <div class="tire"><span>Tras. der.</span><strong id="tireRr">2,4</strong></div>
+            <div class="tire-map">
+              <img class="tire-car-img" src="/assets/byd-top.svg" alt="" />
+              <div class="tire tire-fl"><span>Del. izq.</span><strong id="tireFl">2,4</strong></div>
+              <div class="tire tire-fr"><span>Del. der.</span><strong id="tireFr">2,4</strong></div>
+              <div class="tire tire-rl"><span>Tras. izq.</span><strong id="tireRl">2,4</strong></div>
+              <div class="tire tire-rr"><span>Tras. der.</span><strong id="tireRr">2,4</strong></div>
             </div>
             <p class="hint">Rango recomendado: 2,3 – 2,6 bar</p>
           </article>
         </div>
-
-        <article class="card chart-card">
-          <div class="card-head">
-            <h3>Consumo reciente</h3>
-            <span class="muted">últimos minutos</span>
-          </div>
-          <canvas id="sparkCanvas" height="120" aria-label="Gráfico de consumo"></canvas>
-        </article>
 
         <p id="dashboardBanner" class="banner" hidden></p>
       </section>
@@ -451,6 +547,6 @@
   </section>
 
   <script src="/vendor/leaflet/leaflet.js"></script>
-  <script src="/app.js?v=13"></script>
+  <script src="/app.js?v=14"></script>
 </body>
 </html>

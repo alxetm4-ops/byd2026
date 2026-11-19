@@ -1,0 +1,45 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 360 720" fill="none">
+  <defs>
+    <linearGradient id="topline" x1="60" y1="80" x2="310" y2="650" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#00e5ff"/>
+      <stop offset=".5" stop-color="#6ee7ff"/>
+      <stop offset="1" stop-color="#8b5cf6"/>
+    </linearGradient>
+    <filter id="topglow" x="-40%" y="-20%" width="180%" height="140%">
+      <feGaussianBlur stdDeviation="4" result="b"/>
+      <feMerge><feMergeNode in="b"/><feMergeNode in="SourceGraphic"/></feMerge>
+    </filter>
+  </defs>
+
+  <ellipse cx="180" cy="660" rx="120" ry="18" fill="#00e5ff" opacity=".08" filter="url(#topglow)"/>
+
+  <!-- body -->
+  <path d="M106 110C106 82 128 62 156 58H204C232 62 254 82 254 110V560C254 600 232 628 204 638H156C128 628 106 600 106 560V110Z"
+        fill="#00e5ff" fill-opacity=".035" stroke="url(#topline)" stroke-width="3" filter="url(#topglow)"/>
+
+  <!-- windshield / roof / rear -->
+  <path d="M126 168C126 144 142 128 166 124H194C218 128 234 144 234 168V206H126V168Z" stroke="#6ee7ff" stroke-width="1.6" opacity=".7"/>
+  <path d="M126 512H234V548C234 572 218 590 194 596H166C142 590 126 572 126 548V512Z" stroke="#6ee7ff" stroke-width="1.6" opacity=".55"/>
+  <path d="M126 232H234M126 486H234" stroke="#8b5cf6" stroke-width="1.2" opacity=".35"/>
+  <path d="M140 250H220V470H140V250Z" stroke="#6ee7ff" stroke-width="1" opacity=".18"/>
+
+  <!-- mirrors -->
+  <path d="M100 226H84C76 226 72 232 72 240V258" stroke="url(#topline)" stroke-width="2.4" stroke-linecap="round"/>
+  <path d="M260 226H276C284 226 288 232 288 240V258" stroke="url(#topline)" stroke-width="2.4" stroke-linecap="round"/>
+
+  <!-- wheels -->
+  <g stroke="url(#topline)" filter="url(#topglow)">
+    <rect x="52" y="176" width="38" height="92" rx="16" fill="#071019" stroke-width="2.6"/>
+    <rect x="270" y="176" width="38" height="92" rx="16" fill="#071019" stroke-width="2.6"/>
+    <rect x="52" y="458" width="38" height="92" rx="16" fill="#071019" stroke-width="2.6"/>
+    <rect x="270" y="458" width="38" height="92" rx="16" fill="#071019" stroke-width="2.6"/>
+  </g>
+  <g stroke="#6ee7ff" opacity=".45">
+    <path d="M60 196H82M60 236H82M278 196H300M278 236H300M60 478H82M60 518H82M278 478H300M278 518H300"/>
+  </g>
+
+  <!-- centerline -->
+  <path d="M180 220V486" stroke="#00e5ff" stroke-width="1" stroke-dasharray="4 10" opacity=".28"/>
+  <text x="180" y="352" fill="#dffbff" font-family="Segoe UI, Arial, sans-serif" font-size="15" font-weight="800" text-anchor="middle" letter-spacing="5" opacity=".75">BYD</text>
+  <text x="180" y="372" fill="#6ee7ff" font-family="Segoe UI, Arial, sans-serif" font-size="7" font-weight="600" text-anchor="middle" letter-spacing="3" opacity=".6">YUAN PLUS</text>
+</svg>

@@ -3,12 +3,12 @@
   "short_name": "BYD Colombia",
   "description": "Tablero en español para el BYD Yuan Plus 2026: telemetría, viajes, mapa y radio para Colombia.",
   "lang": "es-CO",
-  "start_url": "/?v=13",
+  "start_url": "/?v=14",
   "scope": "/",
   "display": "standalone",
   "orientation": "any",
-  "background_color": "#0b0f14",
-  "theme_color": "#0b0f14",
+  "background_color": "#03060b",
+  "theme_color": "#03060b",
   "icons": [
     {
       "src": "/icons/icon-192.png",

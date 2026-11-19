@@ -1,0 +1,84 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1200 520" fill="none">
+  <defs>
+    <linearGradient id="line" x1="90" y1="260" x2="1120" y2="360" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#00e5ff"/>
+      <stop offset=".48" stop-color="#6ee7ff"/>
+      <stop offset=".74" stop-color="#8b5cf6"/>
+      <stop offset="1" stop-color="#00ffc6"/>
+    </linearGradient>
+    <linearGradient id="bodyFill" x1="200" y1="180" x2="900" y2="430" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#00e5ff" stop-opacity=".22"/>
+      <stop offset=".5" stop-color="#0e7490" stop-opacity=".10"/>
+      <stop offset="1" stop-color="#8b5cf6" stop-opacity=".18"/>
+    </linearGradient>
+    <radialGradient id="wheel" cx="0" cy="0" r="1" gradientTransform="translate(300 405) rotate(90) scale(66)" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#0b111a"/>
+      <stop offset=".65" stop-color="#071019"/>
+      <stop offset="1" stop-color="#00e5ff" stop-opacity=".14"/>
+    </radialGradient>
+    <filter id="glow" x="-30%" y="-30%" width="160%" height="160%">
+      <feGaussianBlur stdDeviation="5" result="blur"/>
+      <feMerge>
+        <feMergeNode in="blur"/>
+        <feMergeNode in="SourceGraphic"/>
+      </feMerge>
+    </filter>
+    <filter id="softGlow" x="-50%" y="-50%" width="200%" height="200%">
+      <feGaussianBlur stdDeviation="18"/>
+    </filter>
+  </defs>
+
+  <!-- aura -->
+  <ellipse cx="600" cy="438" rx="440" ry="42" fill="#00e5ff" opacity=".08" filter="url(#softGlow)"/>
+  <ellipse cx="600" cy="438" rx="300" ry="20" fill="#8b5cf6" opacity=".12" filter="url(#softGlow)"/>
+
+  <!-- body -->
+  <path d="M105 350C124 309 181 284 244 268L327 220C365 192 431 177 502 175H691C762 177 823 195 875 225L973 276C1022 290 1060 310 1082 342L1084 378C1084 393 1070 404 1052 405H1020M105 350L103 378C103 393 117 404 135 405H248"
+        fill="url(#bodyFill)" stroke="url(#line)" stroke-width="3" filter="url(#glow)"/>
+
+  <!-- roof / hood / waist lines -->
+  <path d="M327 220C370 197 430 183 502 181H690C753 183 810 199 858 226" stroke="url(#line)" stroke-width="2" opacity=".9"/>
+  <path d="M125 334C180 309 228 300 320 291L905 291C980 300 1034 316 1070 339" stroke="#6ee7ff" stroke-width="1.4" opacity=".42"/>
+  <path d="M318 291L250 268M905 291L973 276" stroke="#6ee7ff" stroke-width="1.2" opacity=".35"/>
+
+  <!-- windows -->
+  <path d="M366 218C401 196 450 187 507 185H584L558 264H386L366 218Z" fill="#00e5ff" fill-opacity=".055" stroke="url(#line)" stroke-width="1.8"/>
+  <path d="M602 185H684C742 187 792 201 834 224L800 264H576L602 185Z" fill="#00e5ff" fill-opacity=".045" stroke="url(#line)" stroke-width="1.8"/>
+  <path d="M584 185L558 264M602 185L576 264" stroke="#6ee7ff" stroke-width="1.3" opacity=".55"/>
+
+  <!-- doors -->
+  <path d="M556 267L543 399M789 267L801 399" stroke="#6ee7ff" stroke-width="1.2" opacity=".32"/>
+  <path d="M568 314H618M806 314H854" stroke="#8b5cf6" stroke-width="3" stroke-linecap="round" opacity=".75"/>
+
+  <!-- lights -->
+  <path d="M110 330C129 319 151 314 174 314L190 338L149 346L112 344" fill="#00e5ff" fill-opacity=".22" stroke="#00e5ff" stroke-width="2" filter="url(#glow)"/>
+  <path d="M1024 334C1044 323 1066 320 1086 326L1086 344L1046 350L1024 346" fill="#ff3157" fill-opacity=".16" stroke="#ff3157" stroke-width="2" filter="url(#glow)"/>
+  <path d="M190 338H232M1010 340H1048" stroke="#00e5ff" stroke-width="2" opacity=".7"/>
+
+  <!-- wheels -->
+  <g>
+    <circle cx="300" cy="405" r="67" fill="url(#wheel)" stroke="url(#line)" stroke-width="3"/>
+    <circle cx="300" cy="405" r="45" fill="none" stroke="#6ee7ff" stroke-width="1.4" opacity=".65"/>
+    <circle cx="300" cy="405" r="9" fill="#00e5ff" fill-opacity=".65"/>
+    <path d="M300 360V450M255 405H345M270 375L330 435M330 375L270 435" stroke="#6ee7ff" stroke-width="2" opacity=".38"/>
+  </g>
+  <g>
+    <circle cx="900" cy="405" r="67" fill="url(#wheel)" stroke="url(#line)" stroke-width="3"/>
+    <circle cx="900" cy="405" r="45" fill="none" stroke="#6ee7ff" stroke-width="1.4" opacity=".65"/>
+    <circle cx="900" cy="405" r="9" fill="#00e5ff" fill-opacity=".65"/>
+    <path d="M900 360V450M855 405H945M870 375L930 435M930 375L870 435" stroke="#6ee7ff" stroke-width="2" opacity=".38"/>
+  </g>
+
+  <!-- wheel arches -->
+  <path d="M224 400C228 352 260 330 300 330C340 330 372 352 376 400" stroke="#6ee7ff" stroke-width="1.6" opacity=".38"/>
+  <path d="M824 400C828 352 860 330 900 330C940 330 972 352 976 400" stroke="#6ee7ff" stroke-width="1.6" opacity=".38"/>
+
+  <!-- brand -->
+  <text x="590" y="343" fill="#dffbff" font-family="Segoe UI, Arial, sans-serif" font-size="27" font-weight="800" letter-spacing="8" opacity=".9">BYD</text>
+  <text x="590" y="366" fill="#6ee7ff" font-family="Segoe UI, Arial, sans-serif" font-size="10" font-weight="600" letter-spacing="4" opacity=".7">YUAN PLUS · EV</text>
+
+  <!-- ground -->
+  <path d="M95 474H1110" stroke="url(#line)" stroke-width="1.4" opacity=".28"/>
+  <path d="M180 492H1020" stroke="#8b5cf6" stroke-width="1" opacity=".18"/>
+  <path d="M250 508H950" stroke="#00e5ff" stroke-width="1" opacity=".1"/>
+</svg>
