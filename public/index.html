@@ -10,7 +10,7 @@
   <link rel="icon" href="/icons/icon.svg" type="image/svg+xml" />
   <link rel="apple-touch-icon" href="/icons/icon-192.png" />
   <link rel="stylesheet" href="/vendor/leaflet/leaflet.css" />
-  <link rel="stylesheet" href="/styles.css?v=18" />
+  <link rel="stylesheet" href="/styles.css?v=19" />
 </head>
 <body>
   <div class="fx-bg" aria-hidden="true">
@@ -379,13 +379,13 @@
               <h3>Subir música</h3>
               <span class="chip">MP3</span>
             </div>
-            <p class="hint">Sube archivos que tengas derecho a usar. Formatos: MP3, M4A, AAC, OGG, WAV o FLAC.</p>
+            <p class="hint">Sube archivos que tengas derecho a usar. Formatos: MP3, M4A, AAC, OGG, WAV o FLAC. En Android o en el carro, usa el botón; arrastrar no siempre funciona.</p>
             <div id="musicDrop" class="drop-zone music-drop" role="button" tabindex="0">
               <strong>Arrastra tus MP3 aquí</strong>
               <span>o toca para elegir archivos</span>
             </div>
-            <button id="musicPickBtn" class="primary music-pick" type="button">Elegir archivos MP3</button>
-            <input id="musicFile" type="file" accept="audio/*,.mp3,.m4a,.aac,.ogg,.wav,.flac" multiple hidden />
+            <label id="musicPickBtn" for="musicFile" class="primary music-pick" role="button" tabindex="0">Elegir archivos MP3</label>
+            <input id="musicFile" class="music-file-input" type="file" accept="audio/*,.mp3,.m4a,.aac,.ogg,.wav,.flac" multiple />
             <p id="musicUploadStatus" class="hint"></p>
             <p class="hint">En Render gratis, los archivos pueden borrarse cuando se reinicia o se vuelve a desplegar. Para una biblioteca permanente hace falta almacenamiento externo.</p>
 
@@ -628,6 +628,6 @@
   </section>
 
   <script src="/vendor/leaflet/leaflet.js"></script>
-  <script src="/app.js?v=18"></script>
+  <script src="/app.js?v=19"></script>
 </body>
 </html>

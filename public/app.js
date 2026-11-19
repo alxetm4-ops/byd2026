@@ -1519,7 +1519,14 @@
     const fileInput = $('musicFile');
     const drop = $('musicDrop');
     const pick = $('musicPickBtn');
-    if (pick && fileInput) pick.addEventListener('click', () => fileInput.click());
+    if (pick && fileInput) {
+      pick.addEventListener('keydown', (event) => {
+        if (event.key === 'Enter' || event.key === ' ') {
+          event.preventDefault();
+          fileInput.click();
+        }
+      });
+    }
     if (drop && fileInput) {
       drop.addEventListener('click', () => fileInput.click());
       drop.addEventListener('keydown', (event) => {
