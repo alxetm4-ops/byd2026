@@ -35,6 +35,7 @@
     tripsTab: 'trips',
     commandLang: 'en',
     commandWake: true,
+    commandSearch: '',
   };
 
   state.audio.preload = 'none';
@@ -170,7 +171,7 @@
       ring.style.strokeDashoffset = RING_CIRCUNFERENCIA;
       ring.style.stroke = 'var(--muted)';
       $('socValue').innerHTML = '—';
-      ['rangeValue', 'odoValue', 'consumptionValue', 'powerValue', 'speedValue', 'batteryTempValue', 'batteryTempRow', 'cabinTempValue', 'outsideTempValue', 'v12Value', 'hvCurrentValue', 'hvacValue', 'chargingRow', 'tireFl', 'tireFr', 'tireRl', 'tireRr', 'sohValue'].forEach((id) => setText(id, '—'));
+      ['rangeValue', 'odoValue', 'consumptionValue', 'powerValue', 'speedValue', 'batteryTempValue', 'batteryTempRow', 'cabinTempValue', 'outsideTempValue', 'energyValue', 'capacityValue', 'hvVoltageValue', 'v12Value', 'hvCurrentValue', 'hvacValue', 'chargingRow', 'tireFl', 'tireFr', 'tireRl', 'tireRr', 'sohValue'].forEach((id) => setText(id, '—'));
       setText('sohChip', 'Sin datos');
       setText('cockpitModel', 'EV · — kWh');
       const emptyOrb = $('sohOrb');
@@ -210,7 +211,8 @@
     setText('batteryTempRow', `${fmt1(v.batteryTempC)} °C`);
     setText('cabinTempValue', `${fmt1(v.cabinTempC)} °C`);
     setText('outsideTempValue', `${fmt1(v.outsideTempC)} °C`);
-    setText('v12Value', v.hvVoltage != null ? `${fmt1(v.hvVoltage)} V` : v.voltage12v != null ? `${fmt1(v.voltage12v)} V` : '—');
+    setText('hvVoltageValue', v.hvVoltage != null ? `${fmt1(v.hvVoltage)} V` : '—');
+    setText('v12Value', v.voltage12v != null ? `${fmt1(v.voltage12v)} V` : '—');
     setText('hvCurrentValue', v.hvCurrent != null ? `${fmt1(v.hvCurrent)} A` : '—');
     setText('hvacValue', v.hvacSetpoint != null ? `${fmt1(v.hvacSetpoint)} °C` : '—');
 
@@ -248,7 +250,9 @@
       const orb = $('sohOrb');
       if (orb) orb.style.setProperty('--soh', '0');
     }
-    const capacity = state.config && Number(state.config.capacityKwh) ? Number(state.config.capacityKwh) : 60.5;
+    const capacity = v.capacity != null ? Number(v.capacity) : state.config && Number(state.config.capacityKwh) ? Number(state.config.capacityKwh) : 60.5;
+    setText('energyValue', `${fmt1((soc / 100) * capacity)} kWh`);
+    setText('capacityValue', `${fmt1(capacity)} kWh`);
     setText('cockpitModel', `${v.carModel ? String(v.carModel).toUpperCase() : 'YUAN PLUS'} · ${fmt1(capacity)} kWh`);
 
     setTire('tireFl', v.tireFl);
@@ -1342,25 +1346,133 @@
   /* Comandos por voz (experimental)                                     */
   /* ------------------------------------------------------------------ */
 
-  const CAR_COMMANDS = [
-    { id: 'windows-open', category: 'Ventanas', label: 'Bajar todas', icon: '⇅', en: 'open all windows', zh: '车窗全开' },
-    { id: 'windows-close', category: 'Ventanas', label: 'Subir todas', icon: '⇵', en: 'close all windows', zh: '车窗关闭' },
-    { id: 'windows-front-open', category: 'Ventanas', label: 'Delanteras abajo', icon: '⇈', en: 'open the front windows', zh: '前排车窗全开' },
-    { id: 'windows-front-close', category: 'Ventanas', label: 'Delanteras arriba', icon: '⇊', en: 'close the front windows', zh: '前排车窗关闭' },
-    { id: 'windows-rear-open', category: 'Ventanas', label: 'Traseras abajo', icon: '⇊', en: 'open the rear windows', zh: '后排车窗全开' },
-    { id: 'windows-rear-close', category: 'Ventanas', label: 'Traseras arriba', icon: '⇈', en: 'close the rear windows', zh: '后排车窗关闭' },
-    { id: 'windows-vent', category: 'Ventanas', label: 'Ventilar', icon: '≈', en: 'ventilate the windows', zh: '车窗通风' },
-    { id: 'trunk-open', category: 'Acceso', label: 'Abrir baúl', icon: '▤', en: 'open the trunk', zh: '开后备箱' },
-    { id: 'trunk-close', category: 'Acceso', label: 'Cerrar baúl', icon: '▥', en: 'close the trunk', zh: '关后备箱' },
-    { id: 'lock', category: 'Acceso', label: 'Bloquear puertas', icon: '🔒', en: 'lock the doors', zh: '车门上锁' },
-    { id: 'unlock', category: 'Acceso', label: 'Desbloquear', icon: '🔓', en: 'unlock the doors', zh: '车门解锁' },
-    { id: 'ac-on', category: 'Clima', label: 'Aire automático', icon: '❄', en: 'turn on the air conditioning', zh: '自动空调' },
-    { id: 'ac-off', category: 'Clima', label: 'Apagar aire', icon: '⏻', en: 'turn off the air conditioning', zh: '关闭空调' },
-    { id: 'ac-22', category: 'Clima', label: 'Temperatura 22°', icon: '22', en: 'set the temperature to 22 degrees', zh: '设置温度22' },
-    { id: 'defrost', category: 'Clima', label: 'Desempañar', icon: '♨', en: 'defrost the windshield', zh: '吹前挡' },
-    { id: 'sunroof-open', category: 'Techo', label: 'Abrir techo', icon: '☀', en: 'open the sunroof', zh: '天窗打开100' },
-    { id: 'sunroof-close', category: 'Techo', label: 'Cerrar techo', icon: '☁', en: 'close the sunroof', zh: '天窗打开0' },
-  ];
+  const CAR_COMMANDS = [];
+  function addCarCommands(category, items) {
+    for (const [id, label, en, zh, icon] of items) {
+      CAR_COMMANDS.push({ id, category, label, en, zh, icon });
+    }
+  }
+
+  addCarCommands('Ventanas', [
+    ['windows-open', 'Bajar todas', 'open all windows', '车窗全开', '⇅'],
+    ['windows-close', 'Subir todas', 'close all windows', '车窗关闭', '⇵'],
+    ['windows-half', 'Media altura', 'open the windows halfway', '车窗半开', '⇕'],
+    ['windows-vent', 'Ventilar', 'ventilate the windows', '车窗通风', '≈'],
+    ['windows-front-open', 'Delanteras abajo', 'open the front windows', '前排车窗全开', '⇈'],
+    ['windows-front-close', 'Delanteras arriba', 'close the front windows', '前排车窗关闭', '⇊'],
+    ['windows-front-half', 'Delanteras media', 'open the front windows halfway', '前排车窗半开', '⇕'],
+    ['windows-front-vent', 'Delanteras ventiladas', 'ventilate the front windows', '前排车窗通风', '≈'],
+    ['windows-rear-open', 'Traseras abajo', 'open the rear windows', '后排车窗全开', '⇊'],
+    ['windows-rear-close', 'Traseras arriba', 'close the rear windows', '后排车窗关闭', '⇈'],
+    ['windows-rear-half', 'Traseras media', 'open the rear windows halfway', '后排车窗半开', '⇕'],
+    ['windows-rear-vent', 'Traseras ventiladas', 'ventilate the rear windows', '后排车窗通风', '≈'],
+    ['windows-driver-open', 'Conductor abajo', 'open the driver window', '主驾打开100', '⇊'],
+    ['windows-driver-close', 'Conductor arriba', 'close the driver window', '主驾打开0', '⇈'],
+    ['windows-driver-vent', 'Conductor ventilado', 'vent the driver window', '主驾通风', '≈'],
+    ['windows-driver-half', 'Conductor media', 'open the driver window halfway', '主驾半开', '⇕'],
+    ['windows-passenger-open', 'Copiloto abajo', 'open the passenger window', '副驾打开100', '⇊'],
+    ['windows-passenger-close', 'Copiloto arriba', 'close the passenger window', '副驾打开0', '⇈'],
+    ['windows-passenger-vent', 'Copiloto ventilado', 'vent the passenger window', '副驾通风', '≈'],
+    ['windows-passenger-half', 'Copiloto media', 'open the passenger window halfway', '副驾半开', '⇕'],
+    ['windows-rear-left-open', 'Trasera izquierda abajo', 'open the rear left window', '后左打开100', '⇊'],
+    ['windows-rear-left-close', 'Trasera izquierda arriba', 'close the rear left window', '后左打开0', '⇈'],
+    ['windows-rear-left-vent', 'Trasera izquierda ventilada', 'vent the rear left window', '后左通风', '≈'],
+    ['windows-rear-left-half', 'Trasera izquierda media', 'open the rear left window halfway', '后左半开', '⇕'],
+    ['windows-rear-right-open', 'Trasera derecha abajo', 'open the rear right window', '后右打开100', '⇊'],
+    ['windows-rear-right-close', 'Trasera derecha arriba', 'close the rear right window', '后右打开0', '⇈'],
+    ['windows-rear-right-vent', 'Trasera derecha ventilada', 'vent the rear right window', '后右通风', '≈'],
+    ['windows-rear-right-half', 'Trasera derecha media', 'open the rear right window halfway', '后右半开', '⇕'],
+  ]);
+
+  addCarCommands('Clima', [
+    ['ac-on', 'Aire automático', 'turn on the air conditioning', '自动空调', '❄'],
+    ['ac-off', 'Apagar aire', 'turn off the air conditioning', '关闭空调', '⏻'],
+    ['ac-auto-mode', 'Modo automático', 'set the air conditioning to auto', '空调自动', 'A'],
+    ['ac-flow', 'Solo ventilación', 'turn on air ventilation', '打开空调通风', '≋'],
+    ['fan-1', 'Ventilador 1', 'set the fan to level 1', '风量1', '1'],
+    ['fan-3', 'Ventilador 3', 'set the fan to level 3', '风量3', '3'],
+    ['fan-5', 'Ventilador 5', 'set the fan to level 5', '风量5', '5'],
+    ['fan-7', 'Ventilador 7', 'set the fan to level 7', '风量7', '7'],
+    ['temp-18', 'Temperatura 18°', 'set the temperature to 18 degrees', '设置温度18', '18'],
+    ['temp-20', 'Temperatura 20°', 'set the temperature to 20 degrees', '设置温度20', '20'],
+    ['temp-22', 'Temperatura 22°', 'set the temperature to 22 degrees', '设置温度22', '22'],
+    ['temp-24', 'Temperatura 24°', 'set the temperature to 24 degrees', '设置温度24', '24'],
+    ['temp-26', 'Temperatura 26°', 'set the temperature to 26 degrees', '设置温度26', '26'],
+    ['temp-28', 'Temperatura 28°', 'set the temperature to 28 degrees', '设置温度28', '28'],
+    ['recirc-inner', 'Recirculación', 'turn on inner recirculation', '内循环', '↻'],
+    ['recirc-outer', 'Aire exterior', 'turn on outside air', '外循环', '↺'],
+    ['defrost-on', 'Desempañar', 'defrost the windshield', '吹前挡', '♨'],
+    ['defrost-off', 'Quitar desempañado', 'turn off windshield defrost', '关闭吹前挡', '○'],
+    ['wind-face', 'Viento a la cara', 'blow air to the face', '吹面', '☝'],
+    ['wind-face-feet', 'Cara y pies', 'blow air to face and feet', '吹面吹脚', '⇅'],
+    ['wind-feet', 'Viento a los pies', 'blow air to the feet', '吹脚', '☟'],
+    ['wind-feet-windshield', 'Pies y parabrisas', 'blow air to feet and windshield', '吹脚除霜', '≋'],
+    ['wind-windshield', 'Solo parabrisas', 'blow air to the windshield', '除霜', '◇'],
+  ]);
+
+  addCarCommands('Asientos', [
+    ['seat-driver-heat-1', 'Conductor calor 1', 'driver seat heat level 1', '主驾座椅加热1档', '♨'],
+    ['seat-driver-heat-2', 'Conductor calor 2', 'driver seat heat level 2', '主驾座椅加热2档', '♨'],
+    ['seat-driver-heat-3', 'Conductor calor 3', 'driver seat heat level 3', '主驾座椅加热3档', '♨'],
+    ['seat-driver-heat-off', 'Conductor calor off', 'turn off driver seat heat', '主驾座椅加热关闭', '○'],
+    ['seat-passenger-heat-1', 'Copiloto calor 1', 'passenger seat heat level 1', '副驾座椅加热1档', '♨'],
+    ['seat-passenger-heat-2', 'Copiloto calor 2', 'passenger seat heat level 2', '副驾座椅加热2档', '♨'],
+    ['seat-passenger-heat-3', 'Copiloto calor 3', 'passenger seat heat level 3', '副驾座椅加热3档', '♨'],
+    ['seat-passenger-heat-off', 'Copiloto calor off', 'turn off passenger seat heat', '副驾座椅加热关闭', '○'],
+    ['seat-driver-vent-1', 'Conductor ventilación 1', 'driver seat vent level 1', '主驾座椅通风1档', '≋'],
+    ['seat-driver-vent-2', 'Conductor ventilación 2', 'driver seat vent level 2', '主驾座椅通风2档', '≋'],
+    ['seat-driver-vent-3', 'Conductor ventilación 3', 'driver seat vent level 3', '主驾座椅通风3档', '≋'],
+    ['seat-driver-vent-off', 'Conductor ventilación off', 'turn off driver seat vent', '主驾座椅通风关闭', '○'],
+    ['seat-passenger-vent-1', 'Copiloto ventilación 1', 'passenger seat vent level 1', '副驾座椅通风1档', '≋'],
+    ['seat-passenger-vent-2', 'Copiloto ventilación 2', 'passenger seat vent level 2', '副驾座椅通风2档', '≋'],
+    ['seat-passenger-vent-3', 'Copiloto ventilación 3', 'passenger seat vent level 3', '副驾座椅通风3档', '≋'],
+    ['seat-passenger-vent-off', 'Copiloto ventilación off', 'turn off passenger seat vent', '副驾座椅通风关闭', '○'],
+  ]);
+
+  addCarCommands('Luces y HUD', [
+    ['ambient-on', 'Luz ambiental on', 'turn on ambient light', '氛围灯打开', '◐'],
+    ['ambient-off', 'Luz ambiental off', 'turn off ambient light', '氛围灯关闭', '○'],
+    ['drl-on', 'Luces diurnas on', 'turn on daytime lights', '打开日行灯', '☀'],
+    ['drl-off', 'Luces diurnas off', 'turn off daytime lights', '关闭日行灯', '○'],
+    ['interior-on', 'Luz interior on', 'turn on interior light', '打开车内灯', '💡'],
+    ['interior-off', 'Luz interior off', 'turn off interior light', '关闭车内灯', '○'],
+    ['hud-on', 'HUD on', 'turn on the head-up display', '打开抬头显示', 'H'],
+    ['hud-off', 'HUD off', 'turn off the head-up display', '关闭抬头显示', '○'],
+  ]);
+
+  addCarCommands('Acceso', [
+    ['lock', 'Bloquear puertas', 'lock the doors', '车门上锁', '🔒'],
+    ['unlock', 'Desbloquear puertas', 'unlock the doors', '车门解锁', '🔓'],
+    ['trunk-open', 'Abrir baúl', 'open the trunk', '开后备箱', '▤'],
+    ['trunk-close', 'Cerrar baúl', 'close the trunk', '关后备箱', '▥'],
+  ]);
+
+  addCarCommands('Techo', [
+    ['sunroof-open', 'Abrir techo', 'open the sunroof', '天窗打开100', '☀'],
+    ['sunroof-half', 'Techo a la mitad', 'open the sunroof halfway', '天窗打开50', '◐'],
+    ['sunroof-vent', 'Techo ventilación', 'tilt the sunroof for ventilation', '天窗通风', '≈'],
+    ['sunroof-close', 'Cerrar techo', 'close the sunroof', '天窗打开0', '☁'],
+    ['sunshade-open', 'Abrir cortina', 'open the sunshade', '遮阳帘打开', '▤'],
+    ['sunshade-close', 'Cerrar cortina', 'close the sunshade', '遮阳帘关闭', '▥'],
+  ]);
+
+  addCarCommands('Espejos y volante', [
+    ['mirror-heat-on', 'Calefacción espejos on', 'turn on mirror heating', '后视镜加热', '♨'],
+    ['mirror-heat-off', 'Calefacción espejos off', 'turn off mirror heating', '关闭后视镜加热', '○'],
+    ['steering-heat-on', 'Volante caliente on', 'turn on steering wheel heat', '方向盘加热', '♨'],
+    ['steering-heat-off', 'Volante caliente off', 'turn off steering wheel heat', '关闭方向盘加热', '○'],
+  ]);
+
+  addCarCommands('Conducción', [
+    ['drive-eco', 'Modo ECO', 'set ECO mode', 'ECO模式', 'E'],
+    ['drive-normal', 'Modo normal', 'set normal mode', '普通模式', 'N'],
+    ['drive-sport', 'Modo sport', 'set sport mode', '运动模式', 'S'],
+    ['drive-snow', 'Modo nieve', 'set snow mode', '雪地模式', '❄'],
+    ['drive-sand', 'Modo arena', 'set sand mode', '沙地模式', '≈'],
+    ['drive-mud', 'Modo barro', 'set mud mode', '泥地模式', '◍'],
+    ['drive-mountain', 'Modo montaña', 'set mountain mode', '山地模式', '△'],
+    ['drive-smart', 'Modo inteligente', 'set smart mode', '智能模式', '✦'],
+  ]);
 
   function commandSpeed() {
     const vehicle = state.data && state.data.vehicle;
@@ -1387,12 +1499,27 @@
     const list = $('commandsList');
     if (!list) return;
     list.innerHTML = '';
-    const categories = ['Ventanas', 'Acceso', 'Clima', 'Techo'];
+    const needle = String(state.commandSearch || '').trim().toLowerCase();
+    const items = CAR_COMMANDS.filter(
+      (item) =>
+        !needle ||
+        item.label.toLowerCase().includes(needle) ||
+        item.en.toLowerCase().includes(needle) ||
+        item.zh.includes(needle) ||
+        item.category.toLowerCase().includes(needle)
+    );
+
+    if (!items.length) {
+      list.appendChild(el('div', 'futuristic-empty', 'No hay comandos que coincidan con la búsqueda.'));
+      return;
+    }
+
+    const categories = [...new Set(items.map((item) => item.category))];
     for (const category of categories) {
       const group = el('div', 'commands-group');
       group.appendChild(el('h3', 'commands-group-title', category));
       const grid = el('div', 'commands-grid');
-      for (const command of CAR_COMMANDS.filter((item) => item.category === category)) {
+      for (const command of items.filter((item) => item.category === category)) {
         const card = el('button', 'command-card');
         card.type = 'button';
         card.dataset.command = command.id;
@@ -1499,6 +1626,14 @@
   }
 
   function setupCommandsUI() {
+    const search = $('commandSearch');
+    if (search) {
+      search.addEventListener('input', () => {
+        state.commandSearch = search.value;
+        renderCommands();
+      });
+    }
+
     document.querySelectorAll('#commandLang [data-lang]').forEach((button) => {
       button.addEventListener('click', () => {
         state.commandLang = button.dataset.lang;
@@ -1857,6 +1992,160 @@
     return `${prefix}${parts.join(', ')}.`;
   }
 
+  function currentMonthItems() {
+    const now = new Date();
+    const inMonth = (value) => {
+      if (!value) return false;
+      const date = new Date(value);
+      return !Number.isNaN(date.getTime()) && date.getFullYear() === now.getFullYear() && date.getMonth() === now.getMonth();
+    };
+    const trips = ((state.data && state.data.trips) || []).filter((trip) => inMonth(trip.start));
+    const charges = ((state.data && state.data.charges) || []).filter((charge) => inMonth(charge.start));
+    return { trips, charges };
+  }
+
+  function sayTrips(prefix) {
+    const { trips } = currentMonthItems();
+    if (!trips.length) return `${prefix}No tengo viajes registrados este mes.`;
+    const km = trips.reduce((sum, trip) => sum + Number(trip.distanceKm || 0), 0);
+    const kwh = trips.reduce((sum, trip) => sum + Number(tripKwh(trip) || 0), 0);
+    const cost = trips.reduce((sum, trip) => sum + Number(trip.costCop || 0), 0);
+    const avg = km > 0 ? (kwh / km) * 100 : null;
+    return `${prefix}Este mes tienes ${trips.length} viajes, ${fmt0(km)} kilómetros, ${fmt1(kwh)} kilovatios hora y un costo estimado de ${money.format(cost)}${avg != null ? `, con un consumo medio de ${fmt1(avg)} kilovatios hora por cada 100 kilómetros` : ''}.`;
+  }
+
+  function sayCharges(prefix) {
+    const { charges } = currentMonthItems();
+    if (!charges.length) return `${prefix}No tengo cargas registradas este mes.`;
+    const kwh = charges.reduce((sum, charge) => sum + Number(charge.kwh || 0), 0);
+    const cost = charges.reduce((sum, charge) => sum + Number(charge.costCop || 0), 0);
+    const dc = charges.filter((charge) => String(charge.type || '').toUpperCase() === 'DC').length;
+    return `${prefix}Este mes tienes ${charges.length} cargas, ${fmt1(kwh)} kilovatios hora, ${dc} en corriente directa y un costo estimado de ${money.format(cost)}.`;
+  }
+
+  function sayCosts(prefix) {
+    const { trips, charges } = currentMonthItems();
+    const cost = trips.reduce((sum, trip) => sum + Number(trip.costCop || 0), 0) +
+      charges.reduce((sum, charge) => sum + Number(charge.costCop || 0), 0);
+    const km = trips.reduce((sum, trip) => sum + Number(trip.distanceKm || 0), 0);
+    if (!trips.length && !charges.length) return `${prefix}No tengo viajes ni cargas este mes para calcular el gasto.`;
+    return `${prefix}Este mes llevas ${fmt0(km)} kilómetros y un gasto estimado de ${money.format(cost)} entre viajes y cargas.`;
+  }
+
+  function sayLastCharge(prefix) {
+    const charges = ((state.data && state.data.charges) || [])
+      .filter((charge) => charge.start)
+      .slice()
+      .sort((a, b) => new Date(b.start) - new Date(a.start));
+    if (!charges.length) return `${prefix}No tengo cargas registradas.`;
+    const charge = charges[0];
+    const when = `${fecha.format(new Date(charge.start))} a las ${hora.format(new Date(charge.start))}`;
+    const kwh = charge.kwh != null ? `${fmt1(charge.kwh)} kilovatios hora` : 'energía no registrada';
+    return `${prefix}La última carga fue el ${when}, ${kwh}${charge.costCop != null ? `, por ${money.format(charge.costCop)}` : ''}.`;
+  }
+
+  function resolveCarCommand(t) {
+    const find = (id) => CAR_COMMANDS.find((item) => item.id === id);
+    const windowIntent = t.includes('ventana') || t.includes('ventanilla');
+    if (windowIntent) {
+      const closing = /(cierra|cierre|sube|subir|arriba)/.test(t);
+      const opening = /(abre|abrir|baja|bajar|abajo)/.test(t);
+      const vent = /(ventila|ventilar|ventilacion)/.test(t);
+      const half = /(media|mitad|50)/.test(t);
+      const front = /(delantera|delantero)/.test(t);
+      const rear = /(trasera|trasero)/.test(t);
+      const driver = /(conductor|chofer)/.test(t);
+      const passenger = /(copiloto|pasajero)/.test(t);
+      const left = /(izquierda|izq)/.test(t);
+      const right = /(derecha|der)/.test(t);
+      if (driver) return { command: find(closing ? 'windows-driver-close' : vent ? 'windows-driver-vent' : half ? 'windows-driver-half' : 'windows-driver-open') };
+      if (passenger) return { command: find(closing ? 'windows-passenger-close' : vent ? 'windows-passenger-vent' : half ? 'windows-passenger-half' : 'windows-passenger-open') };
+      if (rear && left) return { command: find(closing ? 'windows-rear-left-close' : vent ? 'windows-rear-left-vent' : half ? 'windows-rear-left-half' : 'windows-rear-left-open') };
+      if (rear && right) return { command: find(closing ? 'windows-rear-right-close' : vent ? 'windows-rear-right-vent' : half ? 'windows-rear-right-half' : 'windows-rear-right-open') };
+      if (front) return { command: find(closing ? 'windows-front-close' : vent ? 'windows-front-vent' : half ? 'windows-front-half' : 'windows-front-open') };
+      if (rear) return { command: find(closing ? 'windows-rear-close' : vent ? 'windows-rear-vent' : half ? 'windows-rear-half' : 'windows-rear-open') };
+      return { command: find(closing ? 'windows-close' : vent ? 'windows-vent' : half ? 'windows-half' : opening ? 'windows-open' : 'windows-open') };
+    }
+
+    if (t.includes('baul') || t.includes('maletero')) {
+      return { command: find(/(cierra|cierre)/.test(t) ? 'trunk-close' : 'trunk-open') };
+    }
+    if (t.includes('puerta') || t.includes('seguro') || t.includes('cerradura')) {
+      if (/(desbloquea|abre|abrir)/.test(t)) return { command: find('unlock') };
+      if (/(bloquea|cierra|cierre)/.test(t)) return { command: find('lock') };
+    }
+    if (t.includes('asiento')) {
+      const driver = /(conductor|chofer)/.test(t);
+      const heat = /(calor|calefaccion|calienta)/.test(t);
+      const vent = /(ventila|ventilacion)/.test(t);
+      const off = /(apaga|quita|off)/.test(t);
+      const level = (t.match(/[1-3]/) || ['1'])[0];
+      const prefix = driver ? 'seat-driver' : 'seat-passenger';
+      const kind = heat ? 'heat' : vent ? 'vent' : 'heat';
+      return { command: find(`${prefix}-${kind}-${off ? 'off' : level}`) };
+    }
+    if (t.includes('espejo')) {
+      return { command: find(/(apaga|quita|off)/.test(t) ? 'mirror-heat-off' : 'mirror-heat-on') };
+    }
+    if (t.includes('volante')) {
+      return { command: find(/(apaga|quita|off)/.test(t) ? 'steering-heat-off' : 'steering-heat-on') };
+    }
+    if (t.includes('techo') || t.includes('sunroof')) {
+      if (/(cortina|sunshade)/.test(t)) return { command: find(/(cierra|cierre)/.test(t) ? 'sunshade-close' : 'sunshade-open') };
+      if (/(cierra|cierre)/.test(t)) return { command: find('sunroof-close') };
+      if (/(ventila|ventilacion)/.test(t)) return { command: find('sunroof-vent') };
+      if (/(media|mitad|50)/.test(t)) return { command: find('sunroof-half') };
+      return { command: find('sunroof-open') };
+    }
+    if (t.includes('cortina')) {
+      return { command: find(/(cierra|cierre)/.test(t) ? 'sunshade-close' : 'sunshade-open') };
+    }
+    if (t.includes('aire') || t.includes('clima')) {
+      if (/(desempaña|desempanar|defrost)/.test(t)) return { command: find(/(quita|apaga|off)/.test(t) ? 'defrost-off' : 'defrost-on') };
+      if (/(apaga|quita|off)/.test(t)) return { command: find('ac-off') };
+      const temp = t.match(/(\d{2})/);
+      if (temp) {
+        const degrees = Number(temp[1]);
+        if (degrees >= 16 && degrees <= 33) {
+          return {
+            custom: `设置温度${degrees}`,
+            en: `set the temperature to ${degrees} degrees`,
+            zh: `设置温度${degrees}`,
+          };
+        }
+      }
+      if (/(prende|enciende|on|auto|pon|poner)/.test(t) || t.includes('aire acondicionado')) return { command: find('ac-on') };
+    }
+    if (t.includes('ventilador')) {
+      const level = (t.match(/[1-7]/) || ['3'])[0];
+      const id = ['1', '3', '5', '7'].includes(level) ? `fan-${level}` : null;
+      if (id) return { command: find(id) };
+      return { custom: `风量${level}`, en: `set the fan to level ${level}`, zh: `风量${level}` };
+    }
+    if (t.includes('recirculacion') || t.includes('aire exterior')) {
+      return { command: find(t.includes('exterior') ? 'recirc-outer' : 'recirc-inner') };
+    }
+    if (t.includes('luz') || t.includes('luces')) {
+      if (/(interior|cabina)/.test(t)) return { command: find(/(apaga|quita|off)/.test(t) ? 'interior-off' : 'interior-on') };
+      if (/(ambiente|ambiental)/.test(t)) return { command: find(/(apaga|quita|off)/.test(t) ? 'ambient-off' : 'ambient-on') };
+      if (/(dia|diurna|drl)/.test(t)) return { command: find(/(apaga|quita|off)/.test(t) ? 'drl-off' : 'drl-on') };
+    }
+    if (t.includes('hud') || t.includes('parabrisas')) {
+      return { command: find(/(apaga|quita|off)/.test(t) ? 'hud-off' : 'hud-on') };
+    }
+    const modes = {
+      eco: 'drive-eco', normal: 'drive-normal', sport: 'drive-sport', deportivo: 'drive-sport',
+      nieve: 'drive-snow', arena: 'drive-sand', barro: 'drive-mud', montana: 'drive-mountain',
+      montaña: 'drive-mountain', inteligente: 'drive-smart', smart: 'drive-smart',
+    };
+    if (t.includes('modo')) {
+      for (const [word, id] of Object.entries(modes)) {
+        if (t.includes(word)) return { command: find(id) };
+      }
+    }
+    return null;
+  }
+
   async function respondToCommand(raw) {
     const t = normalizeText(raw);
     const v = state.data && state.data.vehicle;
@@ -1865,8 +2154,43 @@
 
     if (!t) return 'No entendí. Intenta de nuevo.';
 
-    if (/(ayuda|comandos|que puedes|que sabes)/.test(t)) {
-      return 'Puedes preguntar por batería, autonomía, llantas, temperatura, carga, velocidad, odómetro o salud de la batería. También puedes decir: abre el mapa, abre la radio, pon La Mega, sube el volumen o lee todo.';
+    if (/(ayuda|que puedes|que sabes)/.test(t)) {
+      return 'Puedes preguntar por batería, autonomía, llantas, temperatura, carga, velocidad, odómetro, salud de la batería, viajes, cargas o gastos del mes. También puedes decir: abre el mapa, abre la radio, pon La Mega, sube el volumen, sube las ventanas o abre el baúl.';
+    }
+
+    if (t.includes('comando')) {
+      setView('commands');
+      return 'Abriendo el catálogo de comandos.';
+    }
+
+    if (/(cuanto|cuanta|cuantos|cuantas).*(gaste|gastado|gasto)/.test(t) || t.includes('costo total')) {
+      return sayCosts(prefix);
+    }
+    if (/(cuanto|cuanta|cuantos|cuantas|resumen|estadistica)/.test(t) && t.includes('viaje')) {
+      return sayTrips(prefix);
+    }
+    if (t.includes('ultima carga') || t.includes('ultimo cargo')) {
+      return sayLastCharge(prefix);
+    }
+    if (/(cuanto|cuanta|cuantos|cuantas|resumen|estadistica)/.test(t) && /(cargas|cargos)/.test(t)) {
+      return sayCharges(prefix);
+    }
+    if (t.includes('promedio') || t.includes('consumo medio')) {
+      const trips = (state.data && state.data.trips) || [];
+      const km = trips.reduce((sum, trip) => sum + Number(trip.distanceKm || 0), 0);
+      const kwh = trips.reduce((sum, trip) => sum + Number(tripKwh(trip) || 0), 0);
+      return km > 0
+        ? `${prefix}El consumo medio registrado es ${fmt1((kwh / km) * 100)} kilovatios hora por cada 100 kilómetros.`
+        : `${prefix}No tengo suficientes viajes para calcular el consumo medio.`;
+    }
+    if (t.includes('capacidad')) {
+      const capacity = state.config && Number(state.config.capacityKwh) ? Number(state.config.capacityKwh) : 60.5;
+      return `${prefix}La capacidad configurada de la batería es ${fmt1(capacity)} kilovatios hora.`;
+    }
+    if (t.includes('energia disponible') || t.includes('kwh disponible')) {
+      const capacity = state.config && Number(state.config.capacityKwh) ? Number(state.config.capacityKwh) : 60.5;
+      if (!v || v.soc == null) return `${prefix}No tengo el estado de carga.`;
+      return `${prefix}Quedan aproximadamente ${fmt1((Number(v.soc) / 100) * capacity)} kilovatios hora disponibles.`;
     }
 
     if (t.includes('mapa')) {
@@ -1890,13 +2214,25 @@
       return 'Volviendo al tablero.';
     }
 
-    if (/(ventana|seguro|puerta|baul|maletero|espejo)/.test(t)) {
-      return 'Todavía no puedo controlar eso desde la app. Hazlo desde BYDMate o con los botones del carro.';
-    }
-    if (t.includes('aire acondicionado') || t.includes('prende el aire') || t.includes('pon el aire')) {
-      return v && v.hvacSetpoint != null
-        ? `Todavía no puedo controlar el clima desde aquí. El clima está en ${fmt1(v.hvacSetpoint)} grados.`
-        : 'Todavía no puedo controlar el clima desde aquí.';
+    const carCommand = resolveCarCommand(t);
+    if (carCommand) {
+      const speed = commandSpeed();
+      if (speed !== null && speed > 5) {
+        return 'Detén el carro para usar los comandos del vehículo.';
+      }
+      const lang = state.commandLang;
+      if (carCommand.command) {
+        runCommand(carCommand.command.id);
+        return '';
+      }
+      if (carCommand.custom) {
+        const phrase = lang === 'zh' ? carCommand.zh : carCommand.en;
+        const wake = state.commandWake ? (lang === 'zh' ? '你好小迪' : 'Hi BYD') : '';
+        if (wake) speakWakeThenCommand(wake, phrase, lang);
+        else speakCarPhrase(phrase, lang);
+        return '';
+      }
+      return 'No encontré ese comando en el catálogo.';
     }
 
     const stationMatch = t.match(/(?:pon|reproduce|busca|sintoniza)\s+(?:la\s+|el\s+)?(.+)/);

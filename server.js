@@ -1150,7 +1150,7 @@ const server = http.createServer(async (req, res) => {
 
     if (pathname === '/login' && req.method === 'GET') {
       if (isAuthenticated(req)) {
-        res.writeHead(302, { Location: '/?v=14' });
+        res.writeHead(302, { Location: '/?v=15' });
         res.end();
         return;
       }
@@ -1166,7 +1166,7 @@ const server = http.createServer(async (req, res) => {
       const pass = form.get('password') || '';
       if (user === DASHBOARD_USER && pass === DASHBOARD_PASSWORD) {
         setSessionCookie(res, createSession(user), req);
-        res.writeHead(302, { Location: '/?v=14' });
+        res.writeHead(302, { Location: '/?v=15' });
         res.end();
       } else {
         res.writeHead(302, { Location: '/login?error=1' });

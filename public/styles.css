@@ -2176,6 +2176,11 @@ button {
   margin-top: 10px;
 }
 
+.command-search {
+  margin-top: 10px;
+  width: 100%;
+}
+
 .command-custom input {
   flex: 1;
   min-width: 0;

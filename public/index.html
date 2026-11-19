@@ -10,7 +10,7 @@
   <link rel="icon" href="/icons/icon.svg" type="image/svg+xml" />
   <link rel="apple-touch-icon" href="/icons/icon-192.png" />
   <link rel="stylesheet" href="/vendor/leaflet/leaflet.css" />
-  <link rel="stylesheet" href="/styles.css?v=14" />
+  <link rel="stylesheet" href="/styles.css?v=15" />
 </head>
 <body>
   <div class="fx-bg" aria-hidden="true">
@@ -191,7 +191,10 @@
                 <div class="row"><span>Temperatura batería</span><strong id="batteryTempRow">27,5 °C</strong></div>
                 <div class="row"><span>Temperatura cabina</span><strong id="cabinTempValue">23 °C</strong></div>
                 <div class="row"><span>Temperatura exterior</span><strong id="outsideTempValue">19 °C</strong></div>
-                <div class="row"><span>Voltaje HV</span><strong id="v12Value">—</strong></div>
+                <div class="row"><span>Energía restante</span><strong id="energyValue">—</strong></div>
+                <div class="row"><span>Capacidad</span><strong id="capacityValue">—</strong></div>
+                <div class="row"><span>Voltaje HV</span><strong id="hvVoltageValue">—</strong></div>
+                <div class="row"><span>Sistema 12V</span><strong id="v12Value">—</strong></div>
                 <div class="row"><span>Corriente HV</span><strong id="hvCurrentValue">—</strong></div>
                 <div class="row"><span>Clima (objetivo)</span><strong id="hvacValue">—</strong></div>
                 <div class="row"><span>Estado</span><strong id="chargingRow">Parqueado</strong></div>
@@ -371,6 +374,8 @@
             <button id="commandStop" class="retry" type="button">Detener voz</button>
           </div>
 
+          <input id="commandSearch" class="search command-search" type="search" placeholder="Buscar comando: ventanas, aire, luces, asientos…" aria-label="Buscar comando" />
+
           <p id="commandPhrase" class="command-phrase">Elige un comando.</p>
           <p id="commandStatus" class="hint"></p>
 
@@ -547,6 +552,6 @@
   </section>
 
   <script src="/vendor/leaflet/leaflet.js"></script>
-  <script src="/app.js?v=14"></script>
+  <script src="/app.js?v=15"></script>
 </body>
 </html>
