@@ -1138,7 +1138,8 @@ const server = http.createServer(async (req, res) => {
       pathname === '/manifest.webmanifest' ||
       pathname === '/favicon.ico' ||
       pathname.startsWith('/icons/') ||
-      pathname.startsWith('/vendor/');
+      pathname.startsWith('/vendor/') ||
+      pathname.startsWith('/assets/');
 
     if (!publica && !isAuthenticated(req)) {
       if (pathname.startsWith('/api/')) return sendJson(res, 401, { error: 'no autenticado' });
