@@ -1,7 +1,7 @@
 /* Service worker: cachea solo assets públicos.
    Las navegaciones y /api/ siempre van a la red; si no hay internet,
    se usa el shell de la app cacheado (nunca la pantalla de login). */
-const CACHE = 'byd-colombia-v16';
+const CACHE = 'byd-colombia-v17';
 const ASSETS = [
   '/styles.css',
   '/app.js',
@@ -9,7 +9,7 @@ const ASSETS = [
   '/vendor/leaflet/leaflet.js',
   '/vendor/leaflet/leaflet.css',
   '/icons/icon.svg',
-  '/assets/byd-suv.svg',
+  '/assets/byd-yuan-plus.png',
   '/assets/byd-top.svg',
 ];
 

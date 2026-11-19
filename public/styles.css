@@ -2618,12 +2618,12 @@ body {
 
 .fx-car {
   position: absolute;
-  right: -8vw;
-  bottom: -2vh;
-  width: min(1120px, 92vw);
-  aspect-ratio: 1200 / 520;
-  background: url("/assets/byd-suv.svg") center / contain no-repeat;
-  opacity: 0.11;
+  right: -6vw;
+  bottom: -1vh;
+  width: min(1060px, 92vw);
+  aspect-ratio: 1114 / 605;
+  background: url("/assets/byd-yuan-plus.png") center / contain no-repeat;
+  opacity: 0.1;
   filter: drop-shadow(0 0 40px rgba(0, 229, 255, 0.18));
   animation: fxCar 9s ease-in-out infinite;
 }
