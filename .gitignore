@@ -2,8 +2,13 @@ node_modules/
 .npm-cache/
 fotos-bydmate/
 data/config.json
+data/music/
 .chrome-profile/
 .edge-profile/
+.chrome-*/
+.edge-*/
+preview-*.png
+design-futurista.png
 .ssh/
 *.log
 .DS_Store

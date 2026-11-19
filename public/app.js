@@ -36,10 +36,20 @@
     commandLang: 'en',
     commandWake: true,
     commandSearch: '',
+    music: {
+      tracks: [],
+      index: -1,
+      audio: new Audio(),
+      playing: false,
+      loaded: false,
+      loading: false,
+    },
   };
 
   state.audio.preload = 'none';
   state.audio.volume = 0.8;
+  state.music.audio.preload = 'metadata';
+  state.music.audio.volume = 0.8;
 
   const fmt1 = (v) => (v === null || v === undefined || Number.isNaN(Number(v)) ? '—' : nf1.format(Number(v)));
   const fmt0 = (v) => (v === null || v === undefined || Number.isNaN(Number(v)) ? '—' : nf0.format(Number(v)));
@@ -98,6 +108,7 @@
       }, 80);
     }
     if (name === 'radio' && !state.radioLoaded) loadRadio();
+    if (name === 'multimedia' && !state.music.loaded) loadMusic();
     if (name === 'settings') renderSettings();
     if (name === 'trips') renderTrips();
 
@@ -1163,6 +1174,12 @@
   }
 
   function playStation(station) {
+    if (state.music.audio && !state.music.audio.paused) {
+      state.music.audio.pause();
+      state.music.playing = false;
+      updateMusicUI();
+      renderMusic();
+    }
     state.station = station;
     state.audio.src = station.url;
     state.audio.play().then(() => {
@@ -1220,6 +1237,12 @@
       state.audio.pause();
       state.playing = false;
     } else {
+      if (state.music.audio && !state.music.audio.paused) {
+        state.music.audio.pause();
+        state.music.playing = false;
+        updateMusicUI();
+        renderMusic();
+      }
       state.audio.play().then(() => {
         state.playing = true;
         updatePlayer();
@@ -1258,6 +1281,276 @@
     updatePlayer();
     setText('radioStatus', 'La emisora no responde. Prueba otra.');
   });
+
+  /* ------------------------------------------------------------------ */
+  /* Música local                                                       */
+  /* ------------------------------------------------------------------ */
+
+  function musicTime(value) {
+    const seconds = Math.max(0, Math.floor(Number(value) || 0));
+    const minutes = Math.floor(seconds / 60);
+    return `${minutes}:${String(seconds % 60).padStart(2, '0')}`;
+  }
+
+  function musicBytes(value) {
+    const bytes = Number(value) || 0;
+    if (bytes >= 1024 * 1024) return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
+    if (bytes >= 1024) return `${Math.round(bytes / 1024)} KB`;
+    return `${bytes} B`;
+  }
+
+  function updateMusicUI() {
+    const track = state.music.tracks[state.music.index];
+    const audio = state.music.audio;
+    setText('musicTitle', track ? track.title : 'Sin canción');
+    setText('musicArtist', track ? track.artist : 'Biblioteca local');
+    const cover = $('musicCover');
+    if (cover) cover.textContent = track ? track.title.slice(0, 1).toUpperCase() : '♪';
+    const play = $('musicPlay');
+    if (play) {
+      play.textContent = state.music.playing ? '❚❚' : '▶';
+      play.setAttribute('aria-label', state.music.playing ? 'Pausar' : 'Reproducir');
+    }
+    const duration = Number.isFinite(audio.duration) ? audio.duration : 0;
+    const current = Number.isFinite(audio.currentTime) ? audio.currentTime : 0;
+    setText('musicCurrent', musicTime(current));
+    setText('musicDuration', musicTime(duration));
+    const progress = $('musicProgress');
+    if (progress) {
+      progress.max = duration || 0;
+      progress.value = current;
+    }
+  }
+
+  function renderMusic() {
+    const list = $('musicList');
+    if (!list) return;
+    list.innerHTML = '';
+    const tracks = state.music.tracks || [];
+    setText('musicCount', `${tracks.length} ${tracks.length === 1 ? 'canción' : 'canciones'}`);
+    if (!tracks.length) {
+      const empty = el('div', 'futuristic-empty music-empty');
+      empty.appendChild(el('strong', '', 'La biblioteca está vacía'));
+      empty.appendChild(el('p', '', 'Sube tus propios MP3 o descarga música libre de los catálogos legales.'));
+      list.appendChild(empty);
+      return;
+    }
+
+    tracks.forEach((track, index) => {
+      const row = el('div', 'music-track');
+      if (index === state.music.index) row.classList.add('is-active');
+      row.appendChild(el('span', 'track-number', String(index + 1).padStart(2, '0')));
+      const info = el('div', 'track-info');
+      info.appendChild(el('strong', 'track-title', track.title));
+      info.appendChild(el('span', 'track-meta', `${track.artist} · ${musicBytes(track.size)}`));
+      row.appendChild(info);
+      const play = el('button', 'track-play', index === state.music.index && state.music.playing ? '❚❚' : '▶');
+      play.type = 'button';
+      play.setAttribute('aria-label', `Reproducir ${track.title}`);
+      play.addEventListener('click', () => {
+        if (index === state.music.index) toggleMusic();
+        else playMusic(index);
+      });
+      row.appendChild(play);
+      const remove = el('button', 'track-delete', '×');
+      remove.type = 'button';
+      remove.setAttribute('aria-label', `Eliminar ${track.title}`);
+      remove.addEventListener('click', () => deleteMusic(track));
+      row.appendChild(remove);
+      list.appendChild(row);
+    });
+  }
+
+  async function loadMusic() {
+    if (state.music.loading) return;
+    state.music.loading = true;
+    try {
+      const data = await api('/api/music');
+      state.music.tracks = Array.isArray(data.tracks) ? data.tracks : [];
+      state.music.loaded = true;
+      renderMusic();
+      updateMusicUI();
+    } catch {
+      setText('musicStatus', 'No se pudo cargar la biblioteca. Revisa la sesión e inténtalo otra vez.');
+    } finally {
+      state.music.loading = false;
+    }
+  }
+
+  async function playMusic(index) {
+    const track = state.music.tracks[index];
+    if (!track) return;
+    if (state.playing) {
+      state.audio.pause();
+      state.playing = false;
+      updatePlayer();
+    }
+    state.music.index = index;
+    state.music.audio.src = track.url;
+    try {
+      await state.music.audio.play();
+      state.music.playing = true;
+      setText('musicStatus', `Reproduciendo ${track.title}.`);
+      updateMusicUI();
+      renderMusic();
+    } catch {
+      state.music.playing = false;
+      setText('musicStatus', 'No se pudo reproducir. Revisa que el archivo sea de audio válido.');
+      updateMusicUI();
+    }
+  }
+
+  function nextMusic() {
+    if (!state.music.tracks.length) return;
+    const index = state.music.index < 0 ? 0 : (state.music.index + 1) % state.music.tracks.length;
+    playMusic(index);
+  }
+
+  function previousMusic() {
+    if (!state.music.tracks.length) return;
+    const index = state.music.index <= 0 ? state.music.tracks.length - 1 : state.music.index - 1;
+    playMusic(index);
+  }
+
+  function toggleMusic() {
+    if (state.music.index < 0) {
+      playMusic(0);
+      return;
+    }
+    if (state.music.audio.paused) {
+      state.music.audio.play().then(() => {
+        state.music.playing = true;
+        updateMusicUI();
+        renderMusic();
+      }).catch(() => setText('musicStatus', 'No se pudo reanudar la canción.'));
+    } else {
+      state.music.audio.pause();
+      state.music.playing = false;
+      updateMusicUI();
+      renderMusic();
+    }
+  }
+
+  async function uploadMusic(fileList) {
+    const files = Array.from(fileList || []).filter((file) => file && file.size > 0);
+    if (!files.length) return;
+    for (let i = 0; i < files.length; i += 1) {
+      const file = files[i];
+      setText('musicUploadStatus', `Subiendo ${i + 1} de ${files.length}: ${file.name}…`);
+      if (file.size > 60 * 1024 * 1024) {
+        setText('musicUploadStatus', `${file.name} supera los 60 MB.`);
+        continue;
+      }
+      try {
+        const response = await fetch(`/api/music/upload?name=${encodeURIComponent(file.name)}`, {
+          method: 'POST',
+          body: file,
+        });
+        const result = await response.json().catch(() => ({}));
+        if (response.status === 401) {
+          setText('musicUploadStatus', 'La sesión venció. Recarga la página y entra otra vez.');
+          return;
+        }
+        if (!response.ok) throw new Error(result.error || 'No se pudo subir.');
+      } catch (err) {
+        setText('musicUploadStatus', `Error con ${file.name}: ${err.message}`);
+        return;
+      }
+    }
+    setText('musicUploadStatus', 'Subida completa. Actualizando biblioteca…');
+    await loadMusic();
+    setText('musicUploadStatus', `Listo: ${state.music.tracks.length} canciones en la biblioteca.`);
+  }
+
+  async function deleteMusic(track) {
+    if (!track || !window.confirm(`¿Eliminar “${track.title}” del servidor?`)) return;
+    try {
+      const response = await fetch(`/api/music?name=${encodeURIComponent(track.name)}`, { method: 'DELETE' });
+      if (!response.ok) throw new Error('No se pudo eliminar.');
+      if (state.music.index >= 0 && state.music.tracks[state.music.index]?.name === track.name) {
+        state.music.audio.pause();
+        state.music.audio.removeAttribute('src');
+        state.music.index = -1;
+        state.music.playing = false;
+        updateMusicUI();
+      }
+      await loadMusic();
+      setText('musicStatus', 'Canción eliminada.');
+    } catch (err) {
+      setText('musicStatus', err.message);
+    }
+  }
+
+  function setupMusicUI() {
+    const audio = state.music.audio;
+    const play = $('musicPlay');
+    if (play) play.addEventListener('click', toggleMusic);
+    const prev = $('musicPrev');
+    if (prev) prev.addEventListener('click', previousMusic);
+    const next = $('musicNext');
+    if (next) next.addEventListener('click', nextMusic);
+
+    const progress = $('musicProgress');
+    if (progress) {
+      progress.addEventListener('input', () => {
+        if (Number.isFinite(audio.duration)) audio.currentTime = Number(progress.value);
+      });
+    }
+    const volume = $('musicVolume');
+    if (volume) {
+      volume.addEventListener('input', () => {
+        audio.volume = Number(volume.value);
+      });
+    }
+
+    const fileInput = $('musicFile');
+    const drop = $('musicDrop');
+    if (drop && fileInput) {
+      drop.addEventListener('click', () => fileInput.click());
+      drop.addEventListener('keydown', (event) => {
+        if (event.key === 'Enter' || event.key === ' ') {
+          event.preventDefault();
+          fileInput.click();
+        }
+      });
+      ['dragenter', 'dragover'].forEach((name) => {
+        drop.addEventListener(name, (event) => {
+          event.preventDefault();
+          drop.classList.add('is-dragover');
+        });
+      });
+      ['dragleave', 'drop'].forEach((name) => {
+        drop.addEventListener(name, (event) => {
+          event.preventDefault();
+          drop.classList.remove('is-dragover');
+        });
+      });
+      drop.addEventListener('drop', (event) => uploadMusic(event.dataTransfer.files));
+      fileInput.addEventListener('change', () => {
+        uploadMusic(fileInput.files);
+        fileInput.value = '';
+      });
+    }
+
+    audio.addEventListener('play', () => {
+      state.music.playing = true;
+      updateMusicUI();
+    });
+    audio.addEventListener('pause', () => {
+      state.music.playing = false;
+      updateMusicUI();
+    });
+    audio.addEventListener('ended', nextMusic);
+    audio.addEventListener('loadedmetadata', updateMusicUI);
+    audio.addEventListener('timeupdate', updateMusicUI);
+    audio.addEventListener('error', () => {
+      state.music.playing = false;
+      updateMusicUI();
+      setText('musicStatus', 'No se pudo reproducir este archivo.');
+    });
+  }
+
+  setupMusicUI();
 
   /* ------------------------------------------------------------------ */
   /* Ajustes                                                            */
@@ -2386,6 +2679,15 @@
   document.querySelectorAll('.voice-examples [data-cmd]').forEach((button) => {
     button.addEventListener('click', () => handleVoiceCommand(button.dataset.cmd));
   });
+
+  /* ------------------------------------------------------------------ */
+  /* Enlace directo a una pestaña                                       */
+  /* ------------------------------------------------------------------ */
+
+  const initialView = new URLSearchParams(location.search).get('view');
+  if (initialView && document.getElementById(`view-${initialView}`)) {
+    setView(initialView);
+  }
 
   /* ------------------------------------------------------------------ */
   /* PWA                                                                */

@@ -10,7 +10,8 @@
  */
 import http from 'node:http';
 import { randomBytes, createHmac, timingSafeEqual } from 'node:crypto';
-import { readFile, writeFile, mkdir, stat } from 'node:fs/promises';
+import { createReadStream } from 'node:fs';
+import { readFile, writeFile, mkdir, stat, readdir, unlink } from 'node:fs/promises';
 import { createRequire } from 'node:module';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -35,6 +36,17 @@ const SQL = await initSqlJs({
 });
 
 await mkdir(DATA_DIR, { recursive: true });
+const MUSIC_DIR = path.join(DATA_DIR, 'music');
+await mkdir(MUSIC_DIR, { recursive: true });
+
+const MUSIC_TYPES = {
+  '.mp3': 'audio/mpeg',
+  '.m4a': 'audio/mp4',
+  '.aac': 'audio/aac',
+  '.ogg': 'audio/ogg',
+  '.wav': 'audio/wav',
+  '.flac': 'audio/flac',
+};
 
 /* ------------------------------------------------------------------ */
 /* Configuración                                                       */
@@ -432,6 +444,135 @@ function readBinaryBody(req, limit = 120 * 1024 * 1024) {
     req.on('end', () => resolve(Buffer.concat(chunks)));
     req.on('error', reject);
   });
+}
+
+/* ------------------------------------------------------------------ */
+/* Biblioteca de música local                                          */
+/* ------------------------------------------------------------------ */
+
+function cleanMusicName(raw) {
+  let base = path.basename(String(raw || '').replace(/\\/g, '/'));
+  base = base.replace(/[\u0000-\u001f<>:"/\\|?*]/g, '').trim();
+  if (!base) base = `cancion-${Date.now()}.mp3`;
+  let ext = path.extname(base).toLowerCase();
+  if (!MUSIC_TYPES[ext]) {
+    if (!ext) {
+      base += '.mp3';
+      ext = '.mp3';
+    } else {
+      throw new Error('Formato no permitido. Usa MP3, M4A, AAC, OGG, WAV o FLAC.');
+    }
+  }
+  if (base.length > 160) base = `${base.slice(0, 155)}${ext}`;
+  return base;
+}
+
+function musicPathFor(raw) {
+  const base = cleanMusicName(raw);
+  const full = path.join(MUSIC_DIR, base);
+  if (!full.startsWith(MUSIC_DIR + path.sep)) throw new Error('ruta inválida');
+  return { full, base };
+}
+
+async function uniqueMusicName(raw) {
+  const base = cleanMusicName(raw);
+  const ext = path.extname(base);
+  const stem = base.slice(0, -ext.length);
+  let candidate = base;
+  let index = 2;
+  for (;;) {
+    try {
+      await stat(path.join(MUSIC_DIR, candidate));
+      candidate = `${stem} (${index})${ext}`;
+      index += 1;
+    } catch {
+      return candidate;
+    }
+  }
+}
+
+async function listMusic() {
+  const names = await readdir(MUSIC_DIR).catch(() => []);
+  const tracks = [];
+  for (const name of names) {
+    const ext = path.extname(name).toLowerCase();
+    if (!MUSIC_TYPES[ext]) continue;
+    try {
+      const info = await stat(path.join(MUSIC_DIR, name));
+      if (!info.isFile()) continue;
+      const stem = path.basename(name, path.extname(name));
+      const pieces = stem.split(' - ');
+      const artist = pieces.length > 1 ? pieces.shift().trim() : '';
+      const title = (pieces.join(' - ') || stem).trim();
+      tracks.push({
+        name,
+        title: title || stem,
+        artist: artist || 'Biblioteca local',
+        size: info.size,
+        updatedAt: info.mtime.toISOString(),
+        url: `/api/music/stream/${encodeURIComponent(name)}`,
+      });
+    } catch {
+      /* archivo ilegible */
+    }
+  }
+  return tracks.sort((a, b) => a.title.localeCompare(b.title, 'es'));
+}
+
+async function serveMusicFile(req, res, rawName) {
+  let full;
+  let base;
+  try {
+    ({ full, base } = musicPathFor(rawName));
+  } catch (err) {
+    res.writeHead(400, { 'Content-Type': 'text/plain; charset=utf-8' });
+    res.end(err.message);
+    return;
+  }
+
+  let info;
+  try {
+    info = await stat(full);
+    if (!info.isFile()) throw new Error('no es archivo');
+  } catch {
+    res.writeHead(404, { 'Content-Type': 'text/plain; charset=utf-8' });
+    res.end('No encontrado');
+    return;
+  }
+
+  const total = info.size;
+  const type = MUSIC_TYPES[path.extname(base).toLowerCase()] || 'application/octet-stream';
+  res.setHeader('Accept-Ranges', 'bytes');
+  res.setHeader('Content-Type', type);
+  res.setHeader('Cache-Control', 'no-cache');
+  res.setHeader('Content-Disposition', `inline; filename="${encodeURIComponent(base)}"`);
+
+  const range = req.headers.range;
+  if (!range) {
+    res.writeHead(200, { 'Content-Length': total });
+    createReadStream(full).on('error', () => res.destroy()).pipe(res);
+    return;
+  }
+
+  const match = /^bytes=(\d*)-(\d*)$/.exec(String(range));
+  if (!match) {
+    res.writeHead(416, { 'Content-Range': `bytes */${total}` });
+    res.end();
+    return;
+  }
+  let start = match[1] ? Number(match[1]) : 0;
+  let end = match[2] ? Number(match[2]) : total - 1;
+  if (!Number.isFinite(start) || !Number.isFinite(end) || start > end || start >= total) {
+    res.writeHead(416, { 'Content-Range': `bytes */${total}` });
+    res.end();
+    return;
+  }
+  end = Math.min(end, total - 1);
+  res.writeHead(206, {
+    'Content-Range': `bytes ${start}-${end}/${total}`,
+    'Content-Length': end - start + 1,
+  });
+  createReadStream(full, { start, end }).on('error', () => res.destroy()).pipe(res);
 }
 
 /* ------------------------------------------------------------------ */
@@ -1150,7 +1291,7 @@ const server = http.createServer(async (req, res) => {
 
     if (pathname === '/login' && req.method === 'GET') {
       if (isAuthenticated(req)) {
-        res.writeHead(302, { Location: '/?v=15' });
+        res.writeHead(302, { Location: '/?v=16' });
         res.end();
         return;
       }
@@ -1166,7 +1307,7 @@ const server = http.createServer(async (req, res) => {
       const pass = form.get('password') || '';
       if (user === DASHBOARD_USER && pass === DASHBOARD_PASSWORD) {
         setSessionCookie(res, createSession(user), req);
-        res.writeHead(302, { Location: '/?v=15' });
+        res.writeHead(302, { Location: '/?v=16' });
         res.end();
       } else {
         res.writeHead(302, { Location: '/login?error=1' });
@@ -1229,6 +1370,40 @@ const server = http.createServer(async (req, res) => {
       if (typeof body.currency === 'string' && body.currency.length <= 5) config.currency = body.currency;
       await saveConfig();
       return sendJson(res, 200, config);
+    }
+
+    if (pathname === '/api/music' && req.method === 'GET') {
+      return sendJson(res, 200, { tracks: await listMusic() });
+    }
+
+    if (pathname === '/api/music/upload' && req.method === 'POST') {
+      try {
+        const rawName = url.searchParams.get('name') || '';
+        if (!rawName) return sendJson(res, 400, { error: 'Falta el nombre del archivo.' });
+        const buffer = await readBinaryBody(req, 60 * 1024 * 1024);
+        if (!buffer.length) return sendJson(res, 400, { error: 'El archivo está vacío.' });
+        const name = await uniqueMusicName(rawName);
+        await writeFile(path.join(MUSIC_DIR, name), buffer);
+        return sendJson(res, 200, { ok: true, name, tracks: await listMusic() });
+      } catch (err) {
+        return sendJson(res, 400, { error: err.message || 'No se pudo guardar la canción.' });
+      }
+    }
+
+    if (pathname.startsWith('/api/music/stream/') && req.method === 'GET') {
+      const rawName = decodeURIComponent(pathname.slice('/api/music/stream/'.length));
+      await serveMusicFile(req, res, rawName);
+      return;
+    }
+
+    if (pathname === '/api/music' && req.method === 'DELETE') {
+      try {
+        const { full } = musicPathFor(url.searchParams.get('name') || '');
+        await unlink(full);
+        return sendJson(res, 200, { ok: true, tracks: await listMusic() });
+      } catch {
+        return sendJson(res, 404, { error: 'No encontré esa canción.' });
+      }
     }
 
     if (pathname === '/api/import' && req.method === 'POST') {
