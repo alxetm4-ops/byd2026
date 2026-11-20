@@ -1442,7 +1442,12 @@
       const file = files[i];
       setText('musicUploadStatus', `Subiendo ${i + 1} de ${files.length}: ${file.name}…`);
       if (file.size > 60 * 1024 * 1024) {
-        setText('musicUploadStatus', `${file.name} supera los 60 MB.`);
+        setText('musicUploadStatus', `${file.name} supera los 60 MB. Conviértelo a MP3 con convertir-a-mp3.bat.`);
+        continue;
+      }
+      const extension = (file.name.split('.').pop() || '').toLowerCase();
+      if (['webm', 'mp4', 'mkv', 'mov', 'avi'].includes(extension)) {
+        setText('musicUploadStatus', `${file.name} es un video/WebM. Conviértelo a MP3 con convertir-a-mp3.bat y súbelo de nuevo.`);
         continue;
       }
       try {
