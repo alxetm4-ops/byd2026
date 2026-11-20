@@ -1438,16 +1438,18 @@
       return;
     }
     let latestTracks = null;
+    let uploaded = 0;
+    const failed = [];
     for (let i = 0; i < files.length; i += 1) {
       const file = files[i];
       setText('musicUploadStatus', `Subiendo ${i + 1} de ${files.length}: ${file.name}…`);
       if (file.size > 60 * 1024 * 1024) {
-        setText('musicUploadStatus', `${file.name} supera los 60 MB. Conviértelo a MP3 con convertir-a-mp3.bat.`);
+        failed.push(`${file.name}: supera 60 MB`);
         continue;
       }
       const extension = (file.name.split('.').pop() || '').toLowerCase();
       if (['webm', 'mp4', 'mkv', 'mov', 'avi'].includes(extension)) {
-        setText('musicUploadStatus', `${file.name} es un video/WebM. Conviértelo a MP3 con convertir-a-mp3.bat y súbelo de nuevo.`);
+        failed.push(`${file.name}: es WebM/video, conviértelo a MP3`);
         continue;
       }
       try {
@@ -1461,10 +1463,10 @@
           return;
         }
         if (!response.ok) throw new Error(result.error || 'No se pudo subir.');
+        uploaded += 1;
         if (Array.isArray(result.tracks)) latestTracks = result.tracks;
       } catch (err) {
-        setText('musicUploadStatus', `Error con ${file.name}: ${err.message}`);
-        return;
+        failed.push(`${file.name}: ${err.message}`);
       }
     }
     if (latestTracks) {
@@ -1473,11 +1475,15 @@
       state.music.loading = false;
       renderMusic();
       updateMusicUI();
-    } else {
-      setText('musicUploadStatus', 'Subida completa. Actualizando biblioteca…');
+    } else if (uploaded === 0) {
       await loadMusic(true);
     }
-    setText('musicUploadStatus', `Listo: ${state.music.tracks.length} canciones en la biblioteca.`);
+    if (failed.length) {
+      const detail = failed.slice(0, 3).join(' · ');
+      setText('musicUploadStatus', `Subidas: ${uploaded}. Con error: ${failed.length} (${detail})${failed.length > 3 ? '…' : ''}`);
+    } else {
+      setText('musicUploadStatus', `Listo: ${state.music.tracks.length} canciones en la biblioteca.`);
+    }
   }
 
   async function deleteMusic(track) {
